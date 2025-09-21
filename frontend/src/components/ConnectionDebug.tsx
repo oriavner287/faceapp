@@ -1,3 +1,5 @@
+"use client"
+
 /**
  * Debug component to show detailed connection information
  * Useful for development and testing

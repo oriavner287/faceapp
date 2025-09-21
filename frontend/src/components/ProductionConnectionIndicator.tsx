@@ -1,3 +1,5 @@
+"use client"
+
 /**
  * Production-specific connection indicator
  */

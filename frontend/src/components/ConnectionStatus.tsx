@@ -1,3 +1,5 @@
+"use client"
+
 /**
  * Connection status indicator component
  */
