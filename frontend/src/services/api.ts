@@ -238,9 +238,41 @@ export class ApiService {
       apiBaseUrl: string
     }>
   > {
-    return this.makeRequest(API_ENDPOINTS.HEALTH, {
-      method: "GET",
-    })
+    try {
+      // Use direct fetch for health check since it's not under /api
+      const healthUrl = buildHealthUrl()
+
+      const response = await fetch(healthUrl, {
+        method: "GET",
+        mode: "cors",
+        cache: "no-cache",
+      })
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: {
+            message: `HTTP ${response.status}: ${response.statusText}`,
+            code: response.status.toString(),
+          },
+        }
+      }
+
+      const data = await response.json()
+      return {
+        success: true,
+        data,
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: {
+          message:
+            error instanceof Error ? error.message : "Health check failed",
+          code: "NETWORK_ERROR",
+        },
+      }
+    }
   }
 }
 

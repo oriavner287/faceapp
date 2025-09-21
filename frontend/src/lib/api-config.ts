@@ -91,6 +91,16 @@ export function verifyUrlConstruction(): void {
   )
   console.log("Health URL:", buildHealthUrl())
   console.log("Expected Health URL: https://faceapp-lhtz.onrender.com/health")
+
+  // Verify the health URL is NOT using /api
+  const healthUrl = buildHealthUrl()
+  if (healthUrl.includes("/api/health")) {
+    console.error("❌ ERROR: Health URL still contains /api/health!")
+  } else if (healthUrl.endsWith("/health")) {
+    console.log("✅ SUCCESS: Health URL correctly ends with /health")
+  } else {
+    console.warn("⚠️ WARNING: Health URL format unexpected:", healthUrl)
+  }
   console.log("=====================================")
 }
 
