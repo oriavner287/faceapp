@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.build.json || echo 'Build completed with warnings - check logs above'",
+    "build": "npm install && tsc -p tsconfig.build.json || echo 'Build completed with warnings - check logs above'",
     "build:strict": "tsc",
     "start": "node dist/index.js",
     "type-check": "tsc --noEmit",

@@ -3,14 +3,10 @@
   "version": "1.0.0",
   "description": "Face Video Search Application - Monorepo",
   "private": true,
-  "workspaces": [
-    "frontend",
-    "backend"
-  ],
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend": "cd backend && npm run dev",
-    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && npm install && npm run dev",
+    "dev:frontend": "cd frontend && npm install && npm run dev",
     "build": "npm run build:backend && npm run build:frontend",
     "build:backend": "cd backend && npm run build",
     "build:frontend": "cd frontend && npm run build",
@@ -23,7 +19,7 @@
     "type-check:build": "npm run type-check:build:backend && npm run type-check:build:frontend",
     "type-check:build:backend": "cd backend && npm run type-check:build",
     "type-check:build:frontend": "cd frontend && npm run type-check || echo 'Frontend type check completed with warnings'",
-    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install"
+    "install:all": "cd backend && npm install && cd ../frontend && npm install"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

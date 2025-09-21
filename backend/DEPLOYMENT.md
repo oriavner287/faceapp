@@ -2,13 +2,19 @@
 
 ## Deployment Fixes Applied
 
-### 1. TypeScript Build Issues
+### 1. Workspace Configuration Issues
+
+- **Issue**: npm workspaces causing dependency resolution problems on Render
+- **Fix**: Removed workspaces from root package.json, made each app standalone
+- **Reason**: Render deployment works better with independent package.json files
+
+### 2. TypeScript Build Issues
 
 - **Issue**: Missing `@types/node` during production builds
 - **Fix**: Moved `@types/node` and `typescript` from devDependencies to dependencies
 - **Reason**: Render needs these packages available during the build process
 
-### 2. ES Module Import Issues
+### 3. ES Module Import Issues
 
 - **Issue**: Cannot find modules when running compiled JavaScript
 - **Fix**: Updated imports to use `.js` extensions for ES module compatibility
@@ -16,16 +22,17 @@
   - `src/index.ts`: `import { appRouter } from "./routers/index.js"`
   - `src/routers/index.ts`: Added `.js` extensions to all relative imports
 
-### 3. Build Configuration
+### 4. Build Configuration
 
 - **Issue**: TypeScript errors failing builds
 - **Fix**: Created `tsconfig.build.json` with permissive settings for production
 - **Benefit**: Strict checking in development, non-failing builds for deployment
 
-### 4. Package Configuration
+### 5. Package Configuration
 
 - **Removed**: `postinstall` script that could cause deployment issues
 - **Added**: TypeScript as production dependency for Render builds
+- **Added**: `npm install` to build script to ensure dependencies are available
 
 ## Deployment Commands
 
