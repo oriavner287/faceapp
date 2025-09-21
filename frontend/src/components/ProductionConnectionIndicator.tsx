@@ -126,20 +126,37 @@ export function ProductionConnectionIndicator({
 
   return (
     <div className={`${getPositionClasses()} ${className}`}>
-      <div
-        className={`flex items-center space-x-2 px-2 py-1 rounded-lg border shadow-lg backdrop-blur-sm ${getBadgeColor()} cursor-pointer`}
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
-        {getStatusIcon()}
+      {/* Ultra-compact indicator by default - max 1em */}
+      {!isExpanded ? (
+        <div
+          className={`inline-flex items-center justify-center rounded-full cursor-pointer border ${getBadgeColor()}`}
+          onClick={() => setIsExpanded(true)}
+          style={{
+            width: "1em",
+            height: "1em",
+            minWidth: "1em",
+            minHeight: "1em",
+          }}
+          title={getStatusText()}
+        >
+          <div
+            className={`rounded-full ${
+              isChecking
+                ? "bg-yellow-600 animate-pulse"
+                : isConnected
+                ? "bg-green-600"
+                : "bg-red-600"
+            }`}
+            style={{ width: "0.6em", height: "0.6em" }}
+          />
+        </div>
+      ) : (
+        /* Expanded view */
+        <div
+          className={`flex items-center space-x-2 px-2 py-1 rounded-lg border shadow-lg backdrop-blur-sm ${getBadgeColor()}`}
+        >
+          {getStatusIcon()}
 
-        {/* Compact view by default */}
-        {!isExpanded ? (
-          <div className="flex items-center space-x-1">
-            <span className="text-xs font-medium">
-              {isChecking ? "..." : isConnected ? "API" : "ERR"}
-            </span>
-          </div>
-        ) : (
           <div className="flex flex-col">
             <span className="text-sm font-medium">{getStatusText()}</span>
 
@@ -162,15 +179,10 @@ export function ProductionConnectionIndicator({
               </div>
             )}
           </div>
-        )}
 
-        {/* Refresh button - only show when expanded */}
-        {isExpanded && (
+          {/* Refresh button */}
           <button
-            onClick={e => {
-              e.stopPropagation()
-              refresh()
-            }}
+            onClick={refresh}
             disabled={isChecking}
             className="p-1 rounded hover:bg-black hover:bg-opacity-10 disabled:opacity-50 transition-colors"
             title="Refresh connection status"
@@ -189,14 +201,35 @@ export function ProductionConnectionIndicator({
               />
             </svg>
           </button>
-        )}
-      </div>
+
+          {/* Close button */}
+          <button
+            onClick={() => setIsExpanded(false)}
+            className="p-1 rounded hover:bg-black hover:bg-opacity-10 transition-colors"
+            title="Collapse"
+          >
+            <svg
+              className="w-3 h-3"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+      )}
     </div>
   )
 }
 
 /**
- * Minimal production connection dot indicator
+ * Minimal production connection dot indicator (1em max size)
  */
 export function ProductionConnectionDot({
   className = "",
@@ -209,8 +242,9 @@ export function ProductionConnectionDot({
 
   return (
     <div
-      className={`flex items-center space-x-1 ${className}`}
+      className={`inline-flex items-center ${className}`}
       title="Production API Connection"
+      style={{ maxWidth: "1em", maxHeight: "1em" }}
     >
       <div
         className={`w-2 h-2 rounded-full ${
@@ -220,8 +254,8 @@ export function ProductionConnectionDot({
             ? "bg-green-500"
             : "bg-red-500"
         }`}
+        style={{ width: "0.5em", height: "0.5em" }}
       />
-      <span className="text-xs text-gray-600">PROD</span>
     </div>
   )
 }

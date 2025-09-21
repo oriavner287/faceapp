@@ -28,36 +28,30 @@ export function ConnectionDebug({ className = "" }: ConnectionDebugProps) {
 
   return (
     <div className={`bg-gray-50 border rounded-lg text-sm ${className}`}>
-      {/* Compact header - always visible */}
-      <div className="flex items-center justify-between p-3">
-        <div className="flex items-center space-x-3">
-          <div className="flex items-center space-x-2">
-            <div
-              className={`w-2 h-2 rounded-full ${
-                isChecking
-                  ? "bg-yellow-500 animate-pulse"
-                  : isConnected
-                  ? "bg-green-500"
-                  : "bg-red-500"
-              }`}
-            />
-            <span className="text-xs font-medium text-gray-700">
-              API:{" "}
-              {isChecking
-                ? "Checking..."
+      {/* Ultra-compact header - always visible */}
+      <div className="flex items-center justify-between p-2">
+        <div className="flex items-center space-x-2">
+          <div
+            className={`w-2 h-2 rounded-full ${
+              isChecking
+                ? "bg-yellow-500 animate-pulse"
                 : isConnected
-                ? "Connected"
-                : "Disconnected"}
-            </span>
-          </div>
+                ? "bg-green-500"
+                : "bg-red-500"
+            }`}
+            style={{ width: "0.5em", height: "0.5em" }}
+          />
+          <span className="text-xs text-gray-600">
+            {isChecking ? "..." : isConnected ? "API" : "ERR"}
+          </span>
           <span
-            className={`px-2 py-1 rounded text-xs ${
+            className={`px-1 py-0.5 rounded text-xs ${
               environment === "production"
                 ? "bg-blue-100 text-blue-700"
                 : "bg-gray-200 text-gray-700"
             }`}
           >
-            {environment}
+            {environment === "production" ? "PROD" : "DEV"}
           </span>
         </div>
 

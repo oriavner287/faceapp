@@ -66,9 +66,9 @@ export function buildApiUrl(endpoint: string): string {
 export async function checkApiHealth(): Promise<boolean> {
   try {
     const config = getApiConfig()
-    const healthUrl = config.isProduction
-      ? `${RAILWAY_CONFIG.PRODUCTION_URL}${RAILWAY_CONFIG.HEALTH_CHECK}`
-      : `${config.baseUrl.replace("/api", "")}${API_ENDPOINTS.HEALTH}`
+    // Remove /api from the base URL to get the root URL for health check
+    const baseUrl = config.baseUrl.replace("/api", "")
+    const healthUrl = `${baseUrl}${API_ENDPOINTS.HEALTH}`
 
     const response = await fetch(healthUrl, {
       method: "GET",
