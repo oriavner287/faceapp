@@ -88,4 +88,3 @@ export const FetchVideosOutputSchema = z.object({
     processedSites: z.array(z.string()),
     errors: z.array(z.string()),
 });
-//# sourceMappingURL=api.js.map

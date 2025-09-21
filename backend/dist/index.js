@@ -43,4 +43,3 @@ serve({
     port,
     hostname: host,
 });
-//# sourceMappingURL=index.js.map

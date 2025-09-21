@@ -8,4 +8,3 @@ export const CLIENT_CONFIG = {
     timeout: 30000,
     retries: 3,
 };
-//# sourceMappingURL=client.js.map

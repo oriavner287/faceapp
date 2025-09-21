@@ -45,4 +45,3 @@ export const searchRouter = os.router({
         }
     }),
 });
-//# sourceMappingURL=search.js.map

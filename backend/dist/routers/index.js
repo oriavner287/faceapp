@@ -8,4 +8,3 @@ export const appRouter = os.router({
     search: searchRouter,
     video: videoRouter,
 });
-//# sourceMappingURL=index.js.map
