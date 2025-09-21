@@ -122,57 +122,74 @@ export function ProductionConnectionIndicator({
     return "bg-red-100 border-red-300 text-red-800"
   }
 
+  const [isExpanded, setIsExpanded] = React.useState(false)
+
   return (
     <div className={`${getPositionClasses()} ${className}`}>
       <div
-        className={`flex items-center space-x-2 px-3 py-2 rounded-lg border shadow-lg backdrop-blur-sm ${getBadgeColor()}`}
+        className={`flex items-center space-x-2 px-2 py-1 rounded-lg border shadow-lg backdrop-blur-sm ${getBadgeColor()} cursor-pointer`}
+        onClick={() => setIsExpanded(!isExpanded)}
       >
         {getStatusIcon()}
 
-        <div className="flex flex-col">
-          <span className="text-sm font-medium">{getStatusText()}</span>
+        {/* Compact view by default */}
+        {!isExpanded ? (
+          <div className="flex items-center space-x-1">
+            <span className="text-xs font-medium">
+              {isChecking ? "..." : isConnected ? "API" : "ERR"}
+            </span>
+          </div>
+        ) : (
+          <div className="flex flex-col">
+            <span className="text-sm font-medium">{getStatusText()}</span>
 
-          {/* Additional info for production */}
-          {isProduction && backendInfo && (
-            <div className="text-xs opacity-75">
-              Railway Service • {backendInfo.environment}
-            </div>
-          )}
+            {/* Additional info for production */}
+            {isProduction && backendInfo && (
+              <div className="text-xs opacity-75">
+                Railway Service • {backendInfo.environment}
+              </div>
+            )}
 
-          {/* Error message */}
-          {error && !isConnected && (
-            <div className="text-xs text-red-600 mt-1">{error}</div>
-          )}
+            {/* Error message */}
+            {error && !isConnected && (
+              <div className="text-xs text-red-600 mt-1">{error}</div>
+            )}
 
-          {/* Last checked time */}
-          {lastChecked && (
-            <div className="text-xs opacity-60">
-              Last checked: {lastChecked.toLocaleTimeString()}
-            </div>
-          )}
-        </div>
+            {/* Last checked time */}
+            {lastChecked && (
+              <div className="text-xs opacity-60">
+                Last checked: {lastChecked.toLocaleTimeString()}
+              </div>
+            )}
+          </div>
+        )}
 
-        {/* Refresh button */}
-        <button
-          onClick={refresh}
-          disabled={isChecking}
-          className="p-1 rounded hover:bg-black hover:bg-opacity-10 disabled:opacity-50 transition-colors"
-          title="Refresh connection status"
-        >
-          <svg
-            className={`w-3 h-3 ${isChecking ? "animate-spin" : ""}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+        {/* Refresh button - only show when expanded */}
+        {isExpanded && (
+          <button
+            onClick={e => {
+              e.stopPropagation()
+              refresh()
+            }}
+            disabled={isChecking}
+            className="p-1 rounded hover:bg-black hover:bg-opacity-10 disabled:opacity-50 transition-colors"
+            title="Refresh connection status"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-            />
-          </svg>
-        </button>
+            <svg
+              className={`w-3 h-3 ${isChecking ? "animate-spin" : ""}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+          </button>
+        )}
       </div>
     </div>
   )

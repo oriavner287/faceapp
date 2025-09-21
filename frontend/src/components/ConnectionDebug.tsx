@@ -24,106 +24,137 @@ export function ConnectionDebug({ className = "" }: ConnectionDebugProps) {
     refresh,
   } = useConnection()
 
+  const [isExpanded, setIsExpanded] = React.useState(false)
+
   return (
-    <div
-      className={`bg-gray-100 border rounded-lg p-4 text-sm font-mono ${className}`}
-    >
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-bold text-gray-800">Connection Debug</h3>
-        <button
-          onClick={refresh}
-          disabled={isChecking}
-          className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 disabled:opacity-50"
-        >
-          {isChecking ? "Checking..." : "Refresh"}
-        </button>
-      </div>
-
-      <div className="space-y-2">
-        <div className="flex items-center space-x-2">
-          <span className="font-semibold">Status:</span>
-          <div
-            className={`w-3 h-3 rounded-full ${
-              isChecking
-                ? "bg-yellow-500 animate-pulse"
+    <div className={`bg-gray-50 border rounded-lg text-sm ${className}`}>
+      {/* Compact header - always visible */}
+      <div className="flex items-center justify-between p-3">
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
+            <div
+              className={`w-2 h-2 rounded-full ${
+                isChecking
+                  ? "bg-yellow-500 animate-pulse"
+                  : isConnected
+                  ? "bg-green-500"
+                  : "bg-red-500"
+              }`}
+            />
+            <span className="text-xs font-medium text-gray-700">
+              API:{" "}
+              {isChecking
+                ? "Checking..."
                 : isConnected
-                ? "bg-green-500"
-                : "bg-red-500"
-            }`}
-          />
+                ? "Connected"
+                : "Disconnected"}
+            </span>
+          </div>
           <span
-            className={
-              isChecking
-                ? "text-yellow-600"
-                : isConnected
-                ? "text-green-600"
-                : "text-red-600"
-            }
-          >
-            {isChecking
-              ? "Checking..."
-              : isConnected
-              ? "Connected"
-              : "Disconnected"}
-          </span>
-        </div>
-
-        <div>
-          <span className="font-semibold">Environment:</span>
-          <span
-            className={`ml-2 px-2 py-1 rounded text-xs ${
+            className={`px-2 py-1 rounded text-xs ${
               environment === "production"
-                ? "bg-blue-100 text-blue-800"
-                : "bg-gray-200 text-gray-800"
+                ? "bg-blue-100 text-blue-700"
+                : "bg-gray-200 text-gray-700"
             }`}
           >
             {environment}
           </span>
         </div>
 
-        <div>
-          <span className="font-semibold">API URL:</span>
-          <span className="ml-2 text-blue-600 break-all">{apiUrl}</span>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={refresh}
+            disabled={isChecking}
+            className="p-1 text-gray-500 hover:text-gray-700 disabled:opacity-50"
+            title="Refresh connection"
+          >
+            <svg
+              className={`w-4 h-4 ${isChecking ? "animate-spin" : ""}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+          </button>
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="p-1 text-gray-500 hover:text-gray-700"
+            title={isExpanded ? "Collapse details" : "Show details"}
+          >
+            <svg
+              className={`w-4 h-4 transition-transform ${
+                isExpanded ? "rotate-180" : ""
+              }`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          </button>
         </div>
-
-        <div>
-          <span className="font-semibold">Last Checked:</span>
-          <span className="ml-2 text-gray-600">
-            {lastChecked ? lastChecked.toLocaleString() : "Never"}
-          </span>
-        </div>
-
-        {error && (
-          <div>
-            <span className="font-semibold text-red-600">Error:</span>
-            <span className="ml-2 text-red-600">{error}</span>
-          </div>
-        )}
-
-        {backendInfo && (
-          <div className="mt-3 pt-3 border-t border-gray-300">
-            <div className="font-semibold text-gray-800 mb-2">
-              Backend Info:
-            </div>
-            <div className="pl-4 space-y-1">
-              <div>
-                <span className="font-semibold">Environment:</span>
-                <span className="ml-2">{backendInfo.environment}</span>
-              </div>
-              <div>
-                <span className="font-semibold">Base URL:</span>
-                <span className="ml-2 text-blue-600 break-all">
-                  {backendInfo.apiBaseUrl}
-                </span>
-              </div>
-              <div>
-                <span className="font-semibold">Timestamp:</span>
-                <span className="ml-2">{backendInfo.timestamp}</span>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Expandable details */}
+      {isExpanded && (
+        <div className="px-3 pb-3 border-t border-gray-200 pt-3">
+          <div className="space-y-2 text-xs font-mono">
+            <div>
+              <span className="font-semibold text-gray-600">API URL:</span>
+              <div className="text-blue-600 break-all mt-1">{apiUrl}</div>
+            </div>
+
+            <div>
+              <span className="font-semibold text-gray-600">Last Checked:</span>
+              <div className="text-gray-500 mt-1">
+                {lastChecked ? lastChecked.toLocaleString() : "Never"}
+              </div>
+            </div>
+
+            {error && (
+              <div>
+                <span className="font-semibold text-red-600">Error:</span>
+                <div className="text-red-600 mt-1">{error}</div>
+              </div>
+            )}
+
+            {backendInfo && (
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <div className="font-semibold text-gray-600 mb-2">
+                  Backend Info:
+                </div>
+                <div className="pl-2 space-y-1">
+                  <div>
+                    <span className="font-semibold">Environment:</span>
+                    <span className="ml-2">{backendInfo.environment}</span>
+                  </div>
+                  <div>
+                    <span className="font-semibold">Base URL:</span>
+                    <div className="text-blue-600 break-all mt-1">
+                      {backendInfo.apiBaseUrl}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="font-semibold">Timestamp:</span>
+                    <span className="ml-2">{backendInfo.timestamp}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
