@@ -1,5 +1,5 @@
 import { os } from "@orpc/server";
-import { FetchVideosInputSchema, } from "../contracts/api";
+import { FetchVideosInputSchema, } from "../contracts/api.js";
 // Video fetching router
 export const videoRouter = os.router({
     fetchFromSites: os

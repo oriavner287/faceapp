@@ -3,12 +3,13 @@
   "version": "1.0.0",
   "description": "Face Video Search Application - Backend",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc && npm run build:types",
-    "build:types": "tsc --declaration --emitDeclarationOnly --outDir ./dist/types",
+    "build": "tsc",
     "start": "node dist/index.js",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "postinstall": "npm run build"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
@@ -29,5 +30,9 @@
     "@types/node-cron": "^3.0.11",
     "tsx": "^4.19.2",
     "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   }
 }

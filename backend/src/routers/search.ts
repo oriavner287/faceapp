@@ -4,7 +4,7 @@ import {
   ConfigureSearchInputSchema,
   type GetResultsOutput,
   type ConfigureSearchOutput,
-} from "../contracts/api"
+} from "../contracts/api.js"
 
 // Search results router
 export const searchRouter = os.router({

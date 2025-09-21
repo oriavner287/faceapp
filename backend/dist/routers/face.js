@@ -1,5 +1,5 @@
 import { os } from "@orpc/server";
-import { ProcessImageInputSchema, } from "../contracts/api";
+import { ProcessImageInputSchema, } from "../contracts/api.js";
 // Face processing router
 export const faceRouter = os.router({
     processImage: os
@@ -13,7 +13,7 @@ export const faceRouter = os.router({
             const faceDetected = true; // This will be replaced with actual face detection
             const searchId = `search_${Date.now()}_${Math.random()
                 .toString(36)
-                .substr(2, 9)}`;
+                .substring(2, 11)}`;
             return {
                 success: true,
                 faceDetected,

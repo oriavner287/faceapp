@@ -2,7 +2,7 @@ import { os } from "@orpc/server"
 import {
   ProcessImageInputSchema,
   type ProcessImageOutput,
-} from "../contracts/api"
+} from "../contracts/api.js"
 
 // Face processing router
 export const faceRouter = os.router({

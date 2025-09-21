@@ -2,7 +2,7 @@ import { os } from "@orpc/server"
 import {
   FetchVideosInputSchema,
   type FetchVideosOutput,
-} from "../contracts/api"
+} from "../contracts/api.js"
 
 // Video fetching router
 export const videoRouter = os.router({

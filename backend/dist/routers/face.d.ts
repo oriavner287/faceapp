@@ -5,12 +5,12 @@ export declare const faceRouter: {
         success: boolean;
         faceDetected: boolean;
         searchId: string;
-        embedding?: number[] | undefined;
+        embedding?: number[];
     }, {
         success: boolean;
         faceDetected: boolean;
         searchId: string;
-        embedding?: number[] | undefined;
+        embedding?: number[];
     }>, import("@orpc/contract").MergedErrorMap<Record<never, never>, Record<never, never>>, Record<never, never>>;
 };
 //# sourceMappingURL=face.d.ts.map

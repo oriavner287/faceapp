@@ -1,7 +1,7 @@
 import { os } from "@orpc/server"
-import { faceRouter } from "./face"
-import { searchRouter } from "./search"
-import { videoRouter } from "./video"
+import { faceRouter } from "./face.js"
+import { searchRouter } from "./search.js"
+import { videoRouter } from "./video.js"
 
 // Main application router combining all sub-routers
 export const appRouter = os.router({

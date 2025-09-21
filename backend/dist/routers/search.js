@@ -1,5 +1,5 @@
 import { os } from "@orpc/server";
-import { GetResultsInputSchema, ConfigureSearchInputSchema, } from "../contracts/api";
+import { GetResultsInputSchema, ConfigureSearchInputSchema, } from "../contracts/api.js";
 // Search results router
 export const searchRouter = os.router({
     getResults: os

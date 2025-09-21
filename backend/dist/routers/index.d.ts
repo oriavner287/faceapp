@@ -6,12 +6,12 @@ export declare const appRouter: {
             success: boolean;
             faceDetected: boolean;
             searchId: string;
-            embedding?: number[] | undefined;
+            embedding?: number[];
         }, {
             success: boolean;
             faceDetected: boolean;
             searchId: string;
-            embedding?: number[] | undefined;
+            embedding?: number[];
         }>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("@orpc/contract").MergedErrorMap<Record<never, never>, Record<never, never>>>, Record<never, never>>;
     };
     search: {
