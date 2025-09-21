@@ -61,6 +61,35 @@ export function buildApiUrl(endpoint: string): string {
 }
 
 /**
+ * Test simple endpoint
+ */
+export async function testSimpleEndpoint(): Promise<boolean> {
+  try {
+    const config = getApiConfig()
+    const baseUrl = config.baseUrl.replace("/api", "")
+    const testUrl = `${baseUrl}/test`
+
+    console.log("Test URL:", testUrl)
+
+    const response = await fetch(testUrl, {
+      method: "GET",
+      mode: "cors",
+      cache: "no-cache",
+    })
+
+    console.log("Test response:", response.status, response.statusText)
+    if (response.ok) {
+      const text = await response.text()
+      console.log("Test response body:", text)
+    }
+    return response.ok
+  } catch (error) {
+    console.error("Test endpoint failed:", error)
+    return false
+  }
+}
+
+/**
  * Check if the API is available
  */
 export async function checkApiHealth(): Promise<boolean> {
@@ -70,13 +99,19 @@ export async function checkApiHealth(): Promise<boolean> {
     const baseUrl = config.baseUrl.replace("/api", "")
     const healthUrl = `${baseUrl}${API_ENDPOINTS.HEALTH}`
 
+    console.log("Health check URL:", healthUrl) // Debug log
+
     const response = await fetch(healthUrl, {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      mode: "cors",
+      cache: "no-cache",
     })
 
+    console.log("Health check response:", response.status, response.statusText) // Debug log
+    if (response.ok) {
+      const data = await response.json()
+      console.log("Health check data:", data)
+    }
     return response.ok
   } catch (error) {
     console.error("API health check failed:", error)
