@@ -313,6 +313,8 @@ export class ValidationSchemas {
 
 // Export validation utilities
 export * from "../utils/validation.js"
+// Export configuration
+export * from "../config/index.js"
 
 // Type guards for runtime type checking
 export const TypeGuards = {
