@@ -13,7 +13,14 @@ app.use("*", logger())
 app.use(
   "*",
   cors({
-    origin: config.allowedOrigins,
+    origin: origin => {
+      // Allow all origins if "*" is in the allowed origins list
+      if (config.allowedOrigins.includes("*")) {
+        return origin || "*"
+      }
+      // Otherwise check if the origin is in the allowed list
+      return config.allowedOrigins.includes(origin || "") ? origin : null
+    },
     credentials: true,
   })
 )

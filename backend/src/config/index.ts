@@ -15,6 +15,12 @@ export interface AppConfig {
 
 /**
  * Get application configuration based on environment
+ *
+ * SECURITY NOTE: Currently allowing all origins for development/testing.
+ * In production, we'll implement authentication-based authorization where:
+ * 1. Users must authenticate to get API access
+ * 2. API endpoints check authentication tokens instead of relying on CORS
+ * 3. CORS will be more restrictive once we have stable frontend domains
  */
 export function getConfig(): AppConfig {
   const nodeEnv = process.env.NODE_ENV || "development"
@@ -30,13 +36,11 @@ export function getConfig(): AppConfig {
     : `http://${host === "0.0.0.0" ? "localhost" : host}:${port}`
 
   // Configure allowed origins for CORS
+  // For now, allow all origins during development phase
+  // TODO: Implement authentication-based authorization instead of CORS restrictions
   const allowedOrigins = isDevelopment
     ? ["http://localhost:3000", "http://localhost:3001"]
-    : [
-        process.env.FRONTEND_URL || "https://your-frontend-domain.com",
-        "https://your-render-app.onrender.com",
-        "https://faceapp-lhtz.onrender.com", // Allow self-origin for Railway service
-      ]
+    : ["*"] // Allow all origins in production for now
 
   const frontendUrl = isDevelopment
     ? "http://localhost:3000"
