@@ -1,3 +1,5 @@
+"use client"
+
 /**
  * Hook for monitoring backend connection status
  */

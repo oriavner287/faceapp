@@ -1,3 +1,5 @@
+"use client"
+
 /**
  * Connection status context for global state management
  */
