@@ -13,26 +13,42 @@ app.use("*", logger())
 app.use(
   "*",
   cors({
-    origin: origin => {
-      // Allow all origins if "*" is in the allowed origins list
-      if (config.allowedOrigins.includes("*")) {
-        return origin || "*"
-      }
-      // Otherwise check if the origin is in the allowed list
-      return config.allowedOrigins.includes(origin || "") ? origin : null
-    },
-    credentials: true,
+    origin: "*", // Allow all origins for now
+    credentials: false, // Disable credentials for simpler CORS
+    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Accept", "Authorization"],
   })
 )
 
-// Health check endpoint
-app.get(API_ENDPOINTS.HEALTH, c => {
+// Health check endpoint - handle both OPTIONS and GET
+// Health check endpoint - MUST be before other routes
+app.get("/health", c => {
+  console.log("Health endpoint hit!")
+  c.header("Access-Control-Allow-Origin", "*")
+  c.header("Access-Control-Allow-Methods", "GET, OPTIONS")
+  c.header("Access-Control-Allow-Headers", "Content-Type, Accept")
+
   return c.json({
     status: "ok",
     timestamp: new Date().toISOString(),
     environment: config.nodeEnv,
     apiBaseUrl: config.apiBaseUrl,
   })
+})
+
+app.options("/health", c => {
+  console.log("Health OPTIONS hit!")
+  c.header("Access-Control-Allow-Origin", "*")
+  c.header("Access-Control-Allow-Methods", "GET, OPTIONS")
+  c.header("Access-Control-Allow-Headers", "Content-Type, Accept")
+  return c.text("", 200)
+})
+
+// Simple test endpoint
+app.get("/test", c => {
+  console.log("Test endpoint hit!")
+  c.header("Access-Control-Allow-Origin", "*")
+  return c.text("Backend is working!")
 })
 
 // oRPC handler
@@ -46,6 +62,12 @@ app.all(`${API_ENDPOINTS.API_BASE}/*`, async c => {
     return result.response
   }
 
+  return c.notFound()
+})
+
+// Debug route to see all requests
+app.all("*", c => {
+  console.log(`Unmatched request: ${c.req.method} ${c.req.url}`)
   return c.notFound()
 })
 
