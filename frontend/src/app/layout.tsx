@@ -18,9 +18,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <ConnectionProvider checkInterval={30000} autoStart={true}>
-          {children}
-        </ConnectionProvider>
+        <ConnectionProvider autoStart={true}>{children}</ConnectionProvider>
       </body>
     </html>
   )

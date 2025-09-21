@@ -48,7 +48,7 @@ interface ConnectionProviderProps {
 
 export function ConnectionProvider({
   children,
-  checkInterval = 30000,
+  checkInterval = 0, // Default: check once on load. Set >0 for periodic checks in ms
   autoStart = true,
 }: ConnectionProviderProps) {
   const [state, setState] = useState<ConnectionState>({
@@ -109,10 +109,10 @@ export function ConnectionProvider({
   const startMonitoring = () => {
     if (intervalId) return // Already monitoring
 
-    // Initial check
+    // Initial check on load
     checkConnection()
 
-    // Set up periodic checks
+    // Set up periodic checks only if interval is specified
     if (checkInterval > 0) {
       const id = setInterval(checkConnection, checkInterval)
       setIntervalId(id)

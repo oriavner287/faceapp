@@ -19,7 +19,7 @@ export default function RootLayout({ children }: LayoutProps) {
   return (
     <html lang="en">
       <body>
-        <ConnectionProvider checkInterval={30000} autoStart={true}>
+        <ConnectionProvider autoStart={true}>
           {/* Connection status banner for critical issues */}
           <ConnectionBanner />
 

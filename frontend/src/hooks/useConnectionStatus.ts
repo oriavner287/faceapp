@@ -17,7 +17,8 @@ export interface ConnectionStatus {
   apiUrl: string
 }
 
-export function useConnectionStatus(checkInterval: number = 30000) {
+export function useConnectionStatus(checkInterval: number = 0) {
+  // 0 = check once on load, >0 = periodic checks in ms
   const [status, setStatus] = useState<ConnectionStatus>({
     isConnected: false,
     isChecking: true,
