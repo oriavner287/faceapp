@@ -45,9 +45,10 @@ export function ConnectionStatus({
     <div className={`flex items-center space-x-2 ${className}`}>
       {/* Status indicator dot */}
       <div
-        className={`w-3 h-3 rounded-full ${getStatusColor()} ${
+        className={`rounded-full ${getStatusColor()} ${
           isChecking ? "animate-pulse" : ""
         }`}
+        style={{ width: "0.75em", height: "0.75em" }}
       />
 
       {/* Status text */}
@@ -104,13 +105,14 @@ export function CompactConnectionStatus({
   return (
     <div className={`flex items-center space-x-1 ${className}`}>
       <div
-        className={`w-2 h-2 rounded-full ${
+        className={`rounded-full ${
           isChecking
             ? "bg-yellow-500 animate-pulse"
             : isConnected
             ? "bg-green-500"
             : "bg-red-500"
         }`}
+        style={{ width: "0.5em", height: "0.5em" }}
       />
       <span className={`text-xs ${getStatusColor()}`}>
         {environment === "production" ? "PROD" : "DEV"}
@@ -135,7 +137,8 @@ export function ConnectionBanner() {
         <div className="flex">
           <div className="flex-shrink-0">
             <svg
-              className="h-5 w-5 text-red-400"
+              className="text-red-400"
+              style={{ width: "1em", height: "1em" }}
               viewBox="0 0 20 20"
               fill="currentColor"
             >
@@ -165,7 +168,7 @@ export function ConnectionBanner() {
           >
             <span className="sr-only">Retry connection</span>
             <svg
-              className="h-4 w-4"
+              style={{ width: "0.75em", height: "0.75em" }}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"

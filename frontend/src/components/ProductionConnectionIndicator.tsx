@@ -55,7 +55,8 @@ export function ProductionConnectionIndicator({
     if (isChecking) {
       return (
         <svg
-          className="w-4 h-4 animate-spin text-yellow-500"
+          className="animate-spin text-yellow-500"
+          style={{ width: "1em", height: "1em" }}
           fill="none"
           viewBox="0 0 24 24"
         >
@@ -79,7 +80,8 @@ export function ProductionConnectionIndicator({
     if (isConnected) {
       return (
         <svg
-          className="w-4 h-4 text-green-500"
+          className="text-green-500"
+          style={{ width: "1em", height: "1em" }}
           fill="currentColor"
           viewBox="0 0 20 20"
         >
@@ -94,7 +96,8 @@ export function ProductionConnectionIndicator({
 
     return (
       <svg
-        className="w-4 h-4 text-red-500"
+        className="text-red-500"
+        style={{ width: "1em", height: "1em" }}
         fill="currentColor"
         viewBox="0 0 20 20"
       >
@@ -188,7 +191,8 @@ export function ProductionConnectionIndicator({
             title="Refresh connection status"
           >
             <svg
-              className={`w-3 h-3 ${isChecking ? "animate-spin" : ""}`}
+              className={isChecking ? "animate-spin" : ""}
+              style={{ width: "0.75em", height: "0.75em" }}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -209,7 +213,7 @@ export function ProductionConnectionIndicator({
             title="Collapse"
           >
             <svg
-              className="w-3 h-3"
+              style={{ width: "0.75em", height: "0.75em" }}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"

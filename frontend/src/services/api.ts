@@ -3,7 +3,12 @@
  * Handles all communication with the backend Railway service
  */
 
-import { apiConfig, buildApiUrl, API_ENDPOINTS } from "../lib/api-config"
+import {
+  apiConfig,
+  buildApiUrl,
+  buildHealthUrl,
+  API_ENDPOINTS,
+} from "../lib/api-config"
 
 export interface ApiResponse<T = any> {
   success: boolean
@@ -202,13 +207,21 @@ export class ApiService {
    */
   async checkHealth(): Promise<boolean> {
     try {
-      const response = await this.makeRequest<{ status: string }>(
-        API_ENDPOINTS.HEALTH,
-        {
-          method: "GET",
-        }
-      )
-      return response.success && response.data?.status === "ok"
+      // Use direct fetch for health check since it's not under /api
+      const healthUrl = buildHealthUrl()
+
+      const response = await fetch(healthUrl, {
+        method: "GET",
+        mode: "cors",
+        cache: "no-cache",
+      })
+
+      if (!response.ok) {
+        return false
+      }
+
+      const data = await response.json()
+      return data.status === "ok"
     } catch {
       return false
     }

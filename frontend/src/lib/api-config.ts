@@ -61,6 +61,40 @@ export function buildApiUrl(endpoint: string): string {
 }
 
 /**
+ * Build health check URL (at root level, not under /api)
+ */
+export function buildHealthUrl(): string {
+  const config = getApiConfig()
+  const baseUrl = config.baseUrl.replace("/api", "")
+  const healthUrl = `${baseUrl}/health`
+
+  // Debug logging to verify URL construction
+  console.log("Config baseUrl:", config.baseUrl)
+  console.log("Processed baseUrl:", baseUrl)
+  console.log("Final healthUrl:", healthUrl)
+
+  return healthUrl
+}
+
+/**
+ * Verify URL construction (for debugging)
+ */
+export function verifyUrlConstruction(): void {
+  const config = getApiConfig()
+  console.log("=== URL Construction Verification ===")
+  console.log("Environment:", process.env.NODE_ENV)
+  console.log("Is Production:", config.isProduction)
+  console.log("Base URL:", config.baseUrl)
+  console.log(
+    "API URL (for /upload-image):",
+    buildApiUrl(API_ENDPOINTS.UPLOAD_IMAGE)
+  )
+  console.log("Health URL:", buildHealthUrl())
+  console.log("Expected Health URL: https://faceapp-lhtz.onrender.com/health")
+  console.log("=====================================")
+}
+
+/**
  * Test simple endpoint
  */
 export async function testSimpleEndpoint(): Promise<boolean> {
@@ -94,10 +128,10 @@ export async function testSimpleEndpoint(): Promise<boolean> {
  */
 export async function checkApiHealth(): Promise<boolean> {
   try {
-    const config = getApiConfig()
-    // Remove /api from the base URL to get the root URL for health check
-    const baseUrl = config.baseUrl.replace("/api", "")
-    const healthUrl = `${baseUrl}${API_ENDPOINTS.HEALTH}`
+    // Verify URL construction for debugging
+    verifyUrlConstruction()
+
+    const healthUrl = buildHealthUrl()
 
     console.log("Health check URL:", healthUrl) // Debug log
 

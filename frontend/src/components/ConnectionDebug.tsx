@@ -63,7 +63,8 @@ export function ConnectionDebug({ className = "" }: ConnectionDebugProps) {
             title="Refresh connection"
           >
             <svg
-              className={`w-4 h-4 ${isChecking ? "animate-spin" : ""}`}
+              className={isChecking ? "animate-spin" : ""}
+              style={{ width: "0.75em", height: "0.75em" }}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -82,9 +83,10 @@ export function ConnectionDebug({ className = "" }: ConnectionDebugProps) {
             title={isExpanded ? "Collapse details" : "Show details"}
           >
             <svg
-              className={`w-4 h-4 transition-transform ${
+              className={`transition-transform ${
                 isExpanded ? "rotate-180" : ""
               }`}
+              style={{ width: "0.75em", height: "0.75em" }}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
