@@ -1,22 +1,27 @@
 # Production Connection Status Guide
 
-This guide explains how to verify that the frontend is properly connected to the Railway backend service in production.
+This guide explains the oRPC-based connection monitoring system following frontend-expert.md patterns and Next.js 15 App Router architecture.
 
 ## What's Been Implemented
 
-### ✅ Connection Status Components Added to `frontend/src/app/page.tsx`:
+### ✅ Connection Status Components Following Frontend Steering Patterns:
 
-1. **ConnectionBanner** - Shows at the top when connection fails
-2. **ProductionConnectionDot** - Small indicator in the top-right corner
-3. **EnvironmentBadge** - Shows current environment (DEV/PROD)
-4. **ProductionConnectionIndicator** - Floating detailed status (top-left)
-5. **ConnectionDebug** - Detailed debug information panel
+Components built using function declarations and proper TypeScript interfaces:
 
-### ✅ Global Connection Provider in `frontend/src/app/layout.tsx`:
+1. **ConnectionBanner** - Error boundary pattern with shadcn/ui Alert components
+2. **ProductionConnectionDot** - Minimal indicator with proper accessibility (ARIA labels)
+3. **EnvironmentBadge** - Environment detection with Tailwind CSS styling
+4. **ProductionConnectionIndicator** - Floating status with React hooks in proper order
+5. **ConnectionDebug** - Debug panel with comprehensive error handling
 
-- Wraps the entire app with `ConnectionProvider`
-- Monitors connection every 30 seconds
-- Provides global connection state
+### ✅ Global Connection Provider Following React Context Patterns:
+
+Located in `frontend/src/app/layout.tsx` following Next.js 15 App Router structure:
+
+- **ConnectionProvider**: React Context following frontend-expert.md session management patterns
+- **oRPC Health Checks**: Type-safe health monitoring using oRPC client
+- **Hook Organization**: Proper React hooks order (data fetching, logic, primitives, computed values)
+- **Error Boundaries**: Comprehensive error handling with FaceSearchErrorBoundary patterns
 
 ## How to Verify Connection Status
 

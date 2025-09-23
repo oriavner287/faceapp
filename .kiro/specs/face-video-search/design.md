@@ -2,44 +2,55 @@
 
 ## Overview
 
-The Face Video Search application is a full-stack web application that enables users to upload facial images and find similar-looking individuals in videos from predefined websites. The system uses modern face recognition technology to generate facial embeddings and perform similarity matching against video thumbnails.
+The Face Video Search application is a full-stack monorepo application that enables users to upload facial images and find similar-looking individuals in videos from predefined websites. The system uses modern face recognition technology to generate facial embeddings and perform similarity matching against video thumbnails.
 
-The application is built with Next.js, providing both frontend React components and backend API routes in a single framework, enabling server-side rendering, optimized performance, and simplified deployment.
+The application follows a monorepo architecture with separate frontend (Next.js 15 App Router) and backend (Node.js 18+ with Hono) applications, connected via oRPC for type-safe API communication. This design ensures end-to-end TypeScript type safety, optimal performance, and maintainable code organization following established steering patterns.
 
 ## Architecture
 
 ```mermaid
 graph TB
-    A[Next.js 15+ App] --> B[React Components]
-    A --> C[API Routes]
-    A --> D[oRPC + Hono Layer]
-    C --> E[File Upload Handler]
-    D --> F[Face Recognition Service]
-    D --> G[Video Fetching Service]
-    D --> H[Similarity Matching Service]
-    D --> I[Temporary File Storage]
-    G --> J[External Video Sites]
-
-    subgraph "Frontend (App Router)"
-        B1[Image Upload Page]
-        B2[Results Display Component]
-        B3[Loading/Error Components]
-        B4[TanStack Query Client]
+    subgraph "Monorepo Structure"
+        A[Frontend - Next.js 15 App Router]
+        B[Backend - Node.js 18+ with Hono]
+        C[Shared - oRPC Contracts & Types]
     end
 
-    subgraph "API Layer"
-        C1[/api/upload - File Upload]
-        D1[oRPC Router - Type-Safe APIs]
-        D2[Hono Provider - Web Framework]
+    A --> D[React 19 Components]
+    A --> E[Server Actions]
+    A --> F[oRPC Client]
+
+    B --> G[Hono Web Framework]
+    B --> H[oRPC Server]
+    B --> I[Service Layer]
+
+    C --> J[Type-Safe Contracts]
+    C --> K[Zod Validation Schemas]
+
+    F <--> H
+    E --> I
+
+    I --> L[Face Detection Service]
+    I --> M[Video Fetching Service]
+    I --> N[Session Management Service]
+    I --> O[Cleanup Service]
+
+    M --> P[External Video Sites]
+
+    subgraph "Frontend Structure (/frontend/src/)"
+        D1[app/ - Next.js App Router]
+        D2[components/ - React Components]
+        D3[lib/ - Actions & Utils]
+        D4[hooks/ - Custom Hooks]
+        D5[contexts/ - React Context]
     end
 
-    subgraph "Services"
-        F1[Face Detection]
-        F2[Embedding Generation]
-        G1[Website Scraping]
-        G2[Thumbnail Extraction]
-        H1[Similarity Calculation]
-        H2[Result Filtering]
+    subgraph "Backend Structure (/backend/src/)"
+        I1[contracts/ - API Contracts]
+        I2[routers/ - oRPC Routers]
+        I3[services/ - Business Logic]
+        I4[utils/ - Utilities]
+        I5[types/ - TypeScript Types]
     end
 ```
 
@@ -47,63 +58,130 @@ graph TB
 
 ### Frontend Components
 
-#### ImageUpload Component
+#### ImageUpload Component (`/frontend/src/components/FaceUpload.tsx`)
 
-- **Purpose**: Handle image file selection, validation, and upload
-- **Props**: `onImageUpload(file)`, `isLoading`, `error`
-- **State**: `selectedFile`, `preview`, `uploadProgress`
-- **Features**: Drag-and-drop support, image preview, file validation
-- **UI Components**: Built with shadcn/ui Card, Button, and custom dropzone styling
+- **Purpose**: Handle image file selection, validation, and upload following frontend-expert.md patterns
+- **Architecture**: Function declaration component with proper hook ordering and event handlers
+- **Props**: Type-safe interfaces with proper TypeScript definitions
+- **State Management**: React hooks in proper order (data fetching, logic, primitives, constants, computed values)
+- **Event Handlers**: Use "handle" prefix (handleFaceUpload, handleFileValidation)
+- **Features**: React Dropzone integration, image preview, file validation with proper error boundaries
+- **UI Components**: shadcn/ui Card, Button, Alert components with Tailwind CSS styling
+- **Constants**: ALL_CAPS globals (MAX_FILE_SIZE, ACCEPTED_TYPES)
+- **Error Handling**: Comprehensive error boundary patterns with user-friendly messaging
 
-#### SearchResults Component
+#### SearchResults Component (`/frontend/src/components/SearchResults.tsx`)
 
-- **Purpose**: Display matching videos with thumbnails and metadata
-- **Props**: `results[]`, `isLoading`, `error`
-- **State**: `sortOrder`, `filterThreshold`
-- **Features**: Responsive grid layout, similarity score display, external links
-- **UI Components**: shadcn/ui Card, Badge, Button, and Grid components
+- **Purpose**: Display matching videos with thumbnails and metadata following performance optimization patterns
+- **Architecture**: Function declaration with proper component structure from frontend-expert.md
+- **Props**: Type-safe interfaces with VideoMatch[] arrays and proper error handling
+- **State Management**: React hooks in correct order with computed/derived values using useMemo
+- **Performance**: Virtualized results grid using react-window for large datasets
+- **Features**: Responsive grid layout, similarity score visualization, external link handling
+- **UI Components**: shadcn/ui Card, Badge, Button, Progress, and Grid components with accessibility
+- **Event Handlers**: Proper naming conventions (handleResultClick, handleThresholdChange)
+- **Optimization**: Image lazy loading, virtual scrolling, and proper caching strategies
 
-#### LoadingSpinner Component
+#### LoadingSpinner Component (`/frontend/src/components/ui/LoadingSpinner.tsx`)
 
-- **Purpose**: Show processing status and progress indicators
-- **Props**: `message`, `progress`
-- **Features**: Animated spinner, progress bar, status messages
-- **UI Components**: shadcn/ui Spinner, Progress, and Alert components
+- **Purpose**: Show processing status and progress indicators with comprehensive error handling
+- **Architecture**: Function declaration following frontend-expert.md component patterns
+- **Props**: Type-safe interfaces with proper TypeScript definitions for message and progress
+- **Features**: Animated spinner, progress bar, status messages with accessibility (ARIA labels)
+- **UI Components**: shadcn/ui Spinner, Progress, Alert components with proper semantic HTML
+- **Error Boundary**: FaceSearchErrorBoundary integration for graceful error handling
+- **Accessibility**: Proper ARIA labels, keyboard navigation, and screen reader support
 
 ### API Architecture
 
-#### Next.js API Routes (File Upload)
+#### Server Actions (`/frontend/src/lib/actions.ts`)
 
-##### POST /api/upload
+##### detectFaces Server Action
 
-- **Purpose**: Accept image upload and initiate face recognition
-- **Request**: Multipart form data with image file
-- **Response**: `{ success: boolean, faceDetected: boolean, searchId: string }`
-- **Processing**: File validation, face detection, embedding generation
+- **Purpose**: Accept image upload and initiate face recognition using Next.js 15 server actions
+- **Architecture**: Type-safe server actions with proper error handling and validation
+- **Request**: FormData with image file, validated using Zod schemas
+- **Response**: Type-safe response with success/error states following oRPC patterns
+- **Processing**: File validation, face detection, embedding generation with proper cleanup
+- **Integration**: Uses backend oRPC services for face processing with type safety
 
-#### oRPC with Hono (Type-Safe API Layer)
+#### oRPC with Hono Backend (`/backend/src/`)
 
-##### searchRouter.getResults(searchId: string)
+##### Face Processing Router (`/backend/src/routers/faceRouter.ts`)
 
-- **Purpose**: Retrieve search results for a given search session
-- **Response**: `{ results: VideoMatch[], status: string, progress: number }`
-- **Features**: Type-safe client-server communication, real-time updates
+- **Purpose**: Handle face detection and embedding generation with type-safe oRPC contracts
+- **Architecture**: oRPC server with Hono provider following backend service layer patterns
+- **Contracts**: Type-safe contracts defined in `/backend/src/contracts/api.ts` with Zod validation
+- **Services**: Delegates to `/backend/src/services/faceDetectionService.ts` for business logic
+- **Error Handling**: Comprehensive error handling with proper TypeScript error types
+- **Features**: Type-safe image processing pipeline with automatic cleanup
 
-##### searchRouter.configure(searchId: string, threshold: number)
+##### Video Search Router (`/backend/src/routers/videoRouter.ts`)
 
-- **Purpose**: Update similarity threshold for active search
-- **Request**: Type-safe parameters with validation
-- **Response**: `{ success: boolean, updatedResults: VideoMatch[] }`
+- **Purpose**: Fetch and process videos from predefined websites with parallel processing
+- **Architecture**: Service layer pattern with proper separation of concerns
+- **Services**: Uses `/backend/src/services/videoFetchingService.ts` for scraping logic
+- **Features**: Parallel processing, rate limiting, error handling, progress tracking
+- **Validation**: Zod schemas for request/response validation with runtime type checking
 
-##### faceRouter.processImage(imageData: Buffer)
+##### Session Management Router (`/backend/src/routers/sessionRouter.ts`)
 
-- **Purpose**: Process uploaded image for face detection and embedding generation
-- **Features**: Type-safe image processing pipeline
+- **Purpose**: Manage search sessions with automatic cleanup and privacy protection
+- **Architecture**: Service layer with `/backend/src/services/sessionService.ts`
+- **Features**: Session expiration, data purging, temporary storage management
+- **Privacy**: Automatic cleanup following privacy-first design principles
 
-##### videoRouter.fetchFromSites(embedding: number[])
+### File Organization
 
-- **Purpose**: Fetch and process videos from predefined websites
-- **Features**: Parallel processing, error handling, progress tracking
+Following the monorepo structure from structure.md:
+
+#### Frontend Structure (`/frontend/src/`)
+
+```
+frontend/src/
+├── app/                    # Next.js 15 App Router pages
+│   ├── layout.tsx         # Root layout component
+│   ├── page.tsx           # Main application page
+│   └── globals.css        # Global Tailwind CSS styles
+├── components/            # React components
+│   ├── ui/               # shadcn/ui components (Button, Card, Alert, etc.)
+│   ├── FaceUpload.tsx    # Face upload component
+│   ├── SearchResults.tsx # Search results display
+│   └── LoadingSpinner.tsx # Loading and error states
+├── lib/                  # Utilities and configurations
+│   ├── actions.ts        # Next.js 15 server actions
+│   ├── api-config.ts     # oRPC client configuration
+│   └── utils.ts          # General utility functions
+├── hooks/                # Custom React hooks
+│   └── useImageProcessor.ts # Image processing hook
+├── contexts/             # React context providers
+│   └── SessionProvider.tsx # Search session management
+└── test/                 # Test setup and utilities
+    └── setup.ts          # Vitest configuration
+```
+
+#### Backend Structure (`/backend/src/`)
+
+```
+backend/src/
+├── contracts/            # oRPC API contracts
+│   └── api.ts           # Zod schemas and TypeScript types
+├── routers/             # oRPC route handlers
+│   ├── faceRouter.ts    # Face processing endpoints
+│   ├── videoRouter.ts   # Video search endpoints
+│   └── sessionRouter.ts # Session management
+├── services/            # Business logic services
+│   ├── faceDetectionService.ts # Face recognition logic
+│   ├── videoFetchingService.ts # Video scraping logic
+│   ├── sessionService.ts       # Session management
+│   └── cleanupService.ts       # Privacy and cleanup
+├── utils/               # Utility functions
+│   └── validation.ts    # Zod validation helpers
+├── types/               # TypeScript type definitions
+│   └── index.ts         # Shared type exports
+└── __tests__/           # Jest test files
+    └── services/        # Service layer tests
+```
 
 ### Data Models
 
@@ -153,69 +231,92 @@ interface SearchSession {
 
 ## Technology Stack
 
-### Next.js Full-Stack Framework
+### Monorepo Architecture
 
-- **Next.js 15+** with App Router for full-stack React application
-- **TypeScript** for type safety across frontend and backend
-- **Tailwind CSS** for responsive styling and design system
-- **shadcn/ui** for consistent, accessible UI components built on Radix UI
-- **TanStack Query** for API state management and caching
-- **React Dropzone** for enhanced file upload experience
+- **Structure**: Single repository containing both frontend and backend applications
+- **Type Safety**: End-to-end TypeScript with shared type contracts
+- **Communication**: oRPC for type-safe API communication between frontend and backend
 
-### Backend Architecture
+### Frontend Stack (`/frontend/`)
 
-- **Next.js API Routes** for basic endpoints and file uploads
-- **oRPC with Hono** for extended backend functionality and type-safe API layer
-- **Hono** as the lightweight web framework provider for oRPC
-- **Multer** or **formidable** for multipart file upload handling
-- **face-api.js** or **@tensorflow/tfjs-node** for face recognition
-- **Sharp** for image processing and thumbnail generation
-- **Puppeteer** or **Cheerio** for web scraping
-- **node-cron** for cleanup tasks (or Vercel Cron for deployment)
+- **Framework**: Next.js 15 with App Router and React 19
+- **Runtime**: Node.js 18+ with ESM modules
+- **UI Library**: React 19 with TypeScript strict type checking
+- **Styling**: Tailwind CSS with Tailwind Animate
+- **Components**: Radix UI primitives with shadcn/ui component library
+- **API Client**: oRPC client for type-safe backend communication
+- **File Upload**: React Dropzone with proper validation and error handling
+- **Testing**: Vitest with jsdom environment for component testing
+- **State Management**: React Context for global state, oRPC for server state
 
-### Face Recognition
+### Backend Stack (`/backend/`)
 
-- **Primary**: face-api.js with pre-trained models
-- **Alternative**: TensorFlow.js with MobileNet or FaceNet models
-- **Embedding Size**: 128 or 512 dimensions for optimal accuracy
-- **Distance Metric**: Cosine similarity for face comparison
+- **Runtime**: Node.js 18+ with ESM modules
+- **Framework**: Hono (fast, lightweight web framework)
+- **RPC**: oRPC server for type-safe API endpoints
+- **Validation**: Zod schemas for runtime type validation and API contracts
+- **Face Recognition**: face-api.js with Canvas polyfills for Node.js environment
+- **Image Processing**: Sharp for image manipulation and thumbnail generation
+- **Web Scraping**: Puppeteer and Cheerio for video fetching and metadata extraction
+- **Testing**: Jest with ts-jest for ESM support and service layer testing
+
+### Development Tools
+
+- **TypeScript**: Strict type checking across entire monorepo stack
+- **Build**: Native TypeScript compiler (tsc) for both applications
+- **Dev Server**: tsx watch for backend development, Next.js dev for frontend
+- **Process Management**: Concurrently for running multiple development processes
+- **Type Checking**: Separate type checking commands for frontend and backend
+
+### Face Recognition Technology
+
+- **Primary Library**: face-api.js with pre-trained models for Node.js
+- **Models**: SSD MobileNet for detection, FaceNet for recognition embeddings
+- **Embedding Size**: 128 dimensions for optimal accuracy and performance
+- **Distance Metric**: Cosine similarity for face comparison and matching
+- **Canvas Support**: Canvas polyfills for server-side image processing
 
 ## Architecture Decisions
 
 ### UI Component Library Selection
 
-**Decision**: Use shadcn/ui as the primary component library
+**Decision**: Use shadcn/ui with Radix UI primitives as the primary component library
 **Rationale**:
 
-- Built on top of Radix UI primitives for accessibility and keyboard navigation
-- Fully customizable components that integrate seamlessly with Tailwind CSS
-- Copy-paste approach allows for easy customization and no bundle bloat
-- Consistent design system with modern, clean aesthetics
-- TypeScript-first with excellent type safety
-- Active community and regular updates
-- Works perfectly with Next.js App Router and React Server Components
+- **Accessibility First**: Built on Radix UI primitives with ARIA labels, keyboard navigation, and screen reader support
+- **Type Safety**: TypeScript-first components with excellent type inference and safety
+- **Customization**: Copy-paste approach allows full customization without bundle bloat
+- **Design System**: Consistent design system with Tailwind CSS integration
+- **Performance**: Tree-shakable components with minimal runtime overhead
+- **Developer Experience**: Excellent documentation and community support
+- **Next.js Integration**: Perfect compatibility with App Router and React Server Components
+- **Steering Alignment**: Matches frontend-expert.md component patterns and accessibility guidelines
 
 ### Face Recognition Library Selection
 
-**Decision**: Use face-api.js as the primary face recognition library
+**Decision**: Use face-api.js with Canvas polyfills for Node.js backend processing
 **Rationale**:
 
-- Well-documented and actively maintained
-- Supports both browser and Node.js environments
-- Pre-trained models available for face detection and recognition
-- Good balance between accuracy and performance
+- **Cross-Platform**: Supports both browser and Node.js environments with proper polyfills
+- **Pre-trained Models**: Includes SSD MobileNet for detection and FaceNet for recognition
+- **Performance**: Good balance between accuracy and processing speed for real-time applications
+- **Documentation**: Well-documented API with extensive examples and community support
+- **Integration**: Works seamlessly with Sharp for image processing and Canvas for server-side rendering
+- **Embedding Quality**: Generates high-quality 128-dimension embeddings for accurate similarity matching
+- **Maintenance**: Actively maintained with regular updates and security patches
 
-### Framework Selection
+### Monorepo Architecture Selection
 
-**Decision**: Use Next.js 15+ with App Router instead of separate React frontend and Express backend
+**Decision**: Use monorepo structure with separate Next.js 15 frontend and Node.js 18+ backend
 **Rationale**:
 
-- Latest Next.js features including improved App Router and React Server Components
-- Unified development experience with single codebase
-- Built-in API routes for file uploads and simple endpoints
-- Optimized performance with SSR/SSG capabilities
-- Simplified deployment and hosting options
-- Better developer experience with integrated tooling
+- **Type Safety**: End-to-end TypeScript with shared oRPC contracts and Zod validation
+- **Separation of Concerns**: Clear boundaries between frontend UI and backend business logic
+- **Scalability**: Independent scaling and deployment of frontend and backend services
+- **Development Experience**: Specialized tooling for each application (Vitest for frontend, Jest for backend)
+- **Performance**: Optimized builds using native TypeScript compiler for both applications
+- **Flexibility**: Can deploy frontend and backend to different platforms if needed
+- **Team Collaboration**: Clear ownership boundaries and specialized development workflows
 
 ### API Architecture Selection
 
@@ -252,17 +353,21 @@ interface SearchSession {
 
 ### Frontend Error Handling
 
-- **File Upload Errors**: Display specific validation messages
-- **Network Errors**: Show retry buttons with exponential backoff
-- **Processing Errors**: Provide clear feedback and alternative actions
-- **No Results**: Suggest image quality improvements or different photos
+- **Component Error Boundaries**: FaceSearchErrorBoundary class component following frontend-expert.md patterns
+- **File Upload Errors**: Display specific validation messages using shadcn/ui Alert components with accessibility
+- **Network Errors**: Show retry buttons with exponential backoff and proper user feedback
+- **Processing Errors**: Provide clear feedback and alternative actions with user-friendly messaging
+- **No Results**: Suggest image quality improvements with helpful guidance and retry options
+- **Accessibility**: Proper ARIA labels, error announcements, and keyboard navigation support
 
 ### Backend Error Handling
 
-- **Face Detection Failures**: Return specific error codes and messages
-- **Website Scraping Errors**: Continue processing other sites, log failures
-- **Memory/Resource Limits**: Implement request queuing and rate limiting
-- **Timeout Handling**: Set reasonable timeouts for all external requests
+- **Type-Safe Errors**: Use TypeScript error types and Zod validation for runtime error checking
+- **Face Detection Failures**: Return specific error codes and messages with proper error classification
+- **Website Scraping Errors**: Continue processing other sites, log failures, implement fallback behaviors
+- **Memory/Resource Limits**: Implement request queuing, rate limiting, and proper resource management
+- **Timeout Handling**: Set reasonable timeouts for all external requests with proper cleanup
+- **Service Layer**: Proper error propagation through service layer with logging and monitoring
 
 ### Error Response Format
 
@@ -279,26 +384,32 @@ interface ErrorResponse {
 
 ## Testing Strategy
 
-### Frontend Testing
+### Frontend Testing (`/frontend/src/test/`)
 
-- **Unit Tests**: Jest and React Testing Library for component testing
-- **Integration Tests**: Test API integration and user workflows
-- **Visual Tests**: Storybook for component documentation and testing
-- **E2E Tests**: Cypress for complete user journey testing
+- **Framework**: Vitest with jsdom environment for React component testing
+- **Component Testing**: @testing-library/react following frontend-expert.md testing patterns
+- **Unit Tests**: Component logic, custom hooks, and utility functions with proper TypeScript
+- **Integration Tests**: Server actions integration and oRPC client communication testing
+- **Mocking**: Proper mocking of oRPC calls and server actions using vi.mock() patterns
+- **Test Organization**: Co-located tests with components following structure.md file organization
+- **Accessibility Testing**: ARIA labels, keyboard navigation, and screen reader compatibility
 
-### Backend Testing
+### Backend Testing (`/backend/src/__tests__/`)
 
-- **Unit Tests**: Jest for service and utility function testing
-- **API Tests**: Supertest for endpoint testing with mock data
-- **Face Recognition Tests**: Test with known face images and expected results
-- **Integration Tests**: Test complete workflow with sample images and mock websites
+- **Framework**: Jest with ts-jest for ESM support and TypeScript integration
+- **Service Layer Tests**: Business logic testing for face detection, video fetching, and similarity matching
+- **oRPC Router Tests**: API endpoint testing with type-safe contracts and Zod validation
+- **Integration Tests**: Complete workflow testing with sample images and mock external services
+- **Face Recognition Tests**: Known face pairs testing with expected similarity scores and embeddings
+- **Performance Tests**: Load testing for concurrent users and large image processing workflows
 
 ### Test Data Strategy
 
-- **Sample Images**: Curated set of test images with known faces
-- **Mock Websites**: Local test servers simulating video sites
-- **Performance Tests**: Load testing with concurrent users and large images
-- **Security Tests**: Input validation and file upload security testing
+- **Sample Images**: Curated test dataset with known faces and expected detection results
+- **Mock Services**: Local test servers simulating external video websites with proper error scenarios
+- **Type Safety**: All tests written in TypeScript with strict type checking and proper interfaces
+- **ESM Support**: Modern ES module syntax throughout test suites following tech.md guidelines
+- **Security Tests**: Input validation, file upload security, and malicious file detection testing
 
 ## Security Considerations
 
@@ -325,23 +436,26 @@ interface ErrorResponse {
 
 ## Performance Optimization
 
-### Image Processing
+### Image Processing (`/backend/src/services/`)
 
-- Image resizing before face detection
-- Parallel processing of multiple video thumbnails
-- Caching of face detection models
-- Optimized embedding computation
+- **Sharp Integration**: Image resizing and compression before face detection using Sharp library
+- **Parallel Processing**: Concurrent processing of multiple video thumbnails with proper resource management
+- **Model Caching**: Caching of face-api.js models and Canvas polyfills for Node.js performance
+- **Embedding Optimization**: Optimized 128-dimension embedding computation with batch processing
+- **Memory Management**: Proper cleanup and garbage collection for large image processing workflows
 
-### Frontend Performance
+### Frontend Performance (`/frontend/src/components/`)
 
-- Lazy loading of result images
-- Virtual scrolling for large result sets
-- Image compression for thumbnails
-- Progressive loading indicators
+- **Virtualization**: Virtual scrolling for large result sets using react-window patterns from frontend-expert.md
+- **Image Optimization**: Lazy loading of result images with proper loading states and error handling
+- **Caching Strategy**: useImageProcessor hook with caching for processed images and embeddings
+- **Progressive Loading**: Loading indicators and progress tracking with real-time updates
+- **State Management**: Efficient React state management with proper hook ordering and computed values
 
-### Backend Performance
+### Backend Performance (`/backend/src/services/`)
 
-- Connection pooling for external requests
-- Thumbnail caching with TTL
-- Batch processing of similarity calculations
-- Memory management for large image processing
+- **Connection Pooling**: Efficient connection pooling for external website requests and scraping
+- **Thumbnail Caching**: TTL-based caching for video thumbnails with automatic cleanup
+- **Batch Processing**: Optimized similarity calculations with batch processing of face embeddings
+- **Resource Management**: Memory management for concurrent users and large image processing tasks
+- **Rate Limiting**: Proper rate limiting and request queuing to prevent resource exhaustion

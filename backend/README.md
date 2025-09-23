@@ -1,49 +1,67 @@
 # Face Video Search Backend
 
-This is the backend service for the Face Video Search application, built with oRPC and Hono for type-safe API development.
+Backend service for the Face Video Search application, built following the patterns from `.kiro/steering/backend-expert.md` and `.kiro/steering/tech.md`.
 
 ## Architecture
 
-- **oRPC**: Provides type-safe RPC communication between frontend and backend
-- **Hono**: Fast, lightweight web framework for the HTTP server
-- **oRPC Fetch Adapter**: Integrates oRPC with Hono using the Fetch API
-- **TypeScript**: Full type safety across the entire stack
-- **Zod**: Runtime type validation for API inputs
+Following the monorepo backend architecture:
+
+- **Runtime**: Node.js 18+ with ESM modules
+- **Framework**: Hono (fast, lightweight web framework)
+- **RPC**: oRPC server for type-safe API endpoints
+- **Validation**: Zod schemas for runtime type validation and API contracts
+- **Face Recognition**: face-api.js with Canvas polyfills for Node.js
+- **Image Processing**: Sharp for image manipulation and thumbnail generation
+- **Web Scraping**: Puppeteer and Cheerio for video fetching and metadata extraction
+- **Testing**: Jest with ts-jest for ESM support and service layer testing
 
 ## API Structure
 
-The API is organized into three main routers:
+Following the service layer patterns from backend steering guidelines:
 
-### Face Router (`/api/face`)
+### Service Layer (`/src/services/`)
 
-- `processImage`: Processes uploaded images to detect faces and generate embeddings
+- **faceDetectionService.ts**: Face recognition and embedding generation
+- **videoFetchingService.ts**: Video scraping and thumbnail processing
+- **sessionService.ts**: Search session management and caching
+- **cleanupService.ts**: Privacy-focused data cleanup and file management
 
-### Search Router (`/api/search`)
+### oRPC Routers (`/src/routers/`)
 
-- `getResults`: Retrieves search results for a given search session
-- `configure`: Updates search threshold and filters results
+- **faceRouter.ts**: Face processing endpoints with type-safe contracts
+- **videoRouter.ts**: Video search and fetching with parallel processing
+- **sessionRouter.ts**: Session management with automatic cleanup
 
-### Video Router (`/api/video`)
+### API Contracts (`/src/contracts/`)
 
-- `fetchFromSites`: Fetches videos from predefined websites based on face embeddings
+- **api.ts**: Zod schemas and TypeScript types shared with frontend
+- Type-safe request/response validation
+- Runtime type checking with proper error handling
 
 ## Development
+
+Following the development workflow from tech.md:
 
 ```bash
 # Install dependencies
 npm install
 
-# Start development server with hot reload
-npm run dev
+# Start development server with tsx watch
+npm run dev                 # Hot reload with tsx watch
 
-# Type checking
-npm run type-check
+# Type checking with strict TypeScript
+npm run type-check          # TypeScript strict checking
 
-# Build for production
-npm run build
+# Build using native TypeScript compiler
+npm run build               # Compile to dist/ with ESM modules
 
 # Start production server
-npm start
+npm start                   # Run compiled JavaScript
+
+# Testing with Jest and ESM support
+npm test                    # Run all tests
+npm run test:watch          # Watch mode for development
+npm run test:coverage       # Coverage reports
 ```
 
 ## Type Safety
@@ -57,19 +75,24 @@ import { CLIENT_CONFIG } from "./src/client"
 
 ## Configuration
 
-- Server runs on port 3001 by default
-- CORS configured for frontend at http://localhost:3000
-- All API endpoints are prefixed with `/api`
-- Health check available at `/health`
+Following the backend configuration patterns:
 
-## API Contracts
+- **Port**: 3001 (configurable via PORT environment variable)
+- **Host**: 0.0.0.0 for production, localhost for development
+- **CORS**: Configured for monorepo frontend communication
+- **API Prefix**: All oRPC endpoints prefixed with `/api`
+- **Health Check**: Available at `/health` for monitoring
+- **Environment**: Auto-detection with proper production/development settings
 
-Type-safe API contracts are defined in `src/contracts/api.ts` using Zod schemas for:
+## API Contracts & Type Safety
 
-- Input validation
-- Output type inference
-- Runtime type checking
-- Frontend/backend type synchronization
+Type-safe contracts in `src/contracts/api.ts` following oRPC patterns:
+
+- **Zod Schemas**: Runtime validation for all API inputs and outputs
+- **TypeScript Types**: Shared types with frontend for end-to-end safety
+- **Error Handling**: Comprehensive error types with proper classification
+- **Validation**: Request/response validation with detailed error messages
+- **Frontend Sync**: Automatic type synchronization via oRPC client generation
 
 ## Deployment
 

@@ -1,45 +1,62 @@
 # API Configuration for Face Video Search
 
-This document explains how the application is configured to use the Railway service API endpoint.
+This document explains the oRPC-based API configuration following the patterns from `.kiro/steering/tech.md` and backend architecture guidelines.
 
 ## Production API URL
 
-The application uses the following production API URL:
+The monorepo application uses type-safe oRPC communication with the following production endpoint:
 
 ```
 https://faceapp-lhtz.onrender.com
 ```
 
-## Environment Configuration
+## oRPC Configuration
 
-### Backend Configuration
+Following the monorepo architecture with type-safe oRPC communication:
 
-The backend automatically detects the environment and configures the API base URL:
+### Backend oRPC Server (`/backend/src/`)
 
-- **Development**: `http://localhost:3001`
-- **Production**: `https://faceapp-lhtz.onrender.com`
+The backend runs an oRPC server with Hono provider:
 
-Configuration is managed in `backend/src/config/index.ts`:
+- **Development**: `http://localhost:3001` with oRPC endpoints
+- **Production**: `https://faceapp-lhtz.onrender.com` with oRPC endpoints
+- **Framework**: Hono with oRPC server integration
+- **Contracts**: Type-safe contracts in `/backend/src/contracts/api.ts`
+
+Configuration follows backend-expert.md patterns:
 
 ```typescript
-const apiBaseUrl = isProduction
-  ? "https://faceapp-lhtz.onrender.com"
-  : `http://${host === "0.0.0.0" ? "localhost" : host}:${port}`
+// backend/src/index.ts
+import { serve } from "@hono/node-server"
+import { Hono } from "hono"
+import { cors } from "hono/cors"
+import { createORPCHandler } from "@orpc/server"
+import { appRouter } from "./routers/index.js"
+
+const app = new Hono()
+const handler = createORPCHandler({ router: appRouter })
 ```
 
-### Frontend Configuration
+### Frontend oRPC Client (`/frontend/src/`)
 
-The frontend API service automatically configures the base URL based on environment:
+The frontend uses oRPC client for type-safe API communication:
 
-- **Development**: `http://localhost:3001/api`
-- **Production**: `https://faceapp-lhtz.onrender.com/api`
+- **Development**: Connects to `http://localhost:3001/api`
+- **Production**: Connects to `https://faceapp-lhtz.onrender.com/api`
+- **Type Safety**: Automatic TypeScript inference from backend contracts
+- **Configuration**: Managed in `/frontend/src/lib/api-config.ts`
 
-Configuration is managed in `frontend/src/lib/api-config.ts`:
+Configuration follows frontend-expert.md patterns:
 
 ```typescript
-const baseUrl = isProduction
-  ? "https://faceapp-lhtz.onrender.com/api"
-  : process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api"
+// frontend/src/lib/api-config.ts
+import { createORPCClient } from "@orpc/client"
+import type { AppRouter } from "../../../backend/src/contracts/api"
+
+const client = createORPCClient<AppRouter>({
+  baseURL: apiConfig.baseUrl,
+  fetch: fetch,
+})
 ```
 
 ## Environment Variables
@@ -60,15 +77,33 @@ NEXT_PUBLIC_API_URL=http://localhost:3001/api  # Development only
 NODE_ENV=production  # For production builds
 ```
 
-## API Endpoints
+## oRPC API Endpoints
 
-All API endpoints are prefixed with `/api`:
+Type-safe oRPC endpoints following the service layer architecture:
 
-- `GET /health` - Health check
-- `POST /api/upload-image` - Upload image for face detection
-- `POST /api/get-results` - Get search results
-- `POST /api/configure-search` - Configure search parameters
-- `POST /api/fetch-videos` - Fetch videos based on embeddings
+### Face Processing Router (`/api/face`)
+
+- `processImage` - Process uploaded images for face detection and embedding generation
+- Type-safe with Zod validation for image data and response types
+- Integrates with faceDetectionService for business logic
+
+### Video Search Router (`/api/video`)
+
+- `fetchFromSites` - Fetch videos from predefined websites with parallel processing
+- `searchVideos` - Search videos using face embeddings with similarity matching
+- Type-safe with progress tracking and error handling
+
+### Session Management Router (`/api/session`)
+
+- `createSession` - Create new search session with automatic cleanup
+- `getSession` - Retrieve session data with privacy protection
+- `updateSession` - Update session parameters and results
+- `cleanupSession` - Manual session cleanup and data purging
+
+### Health Check
+
+- `GET /health` - Non-oRPC health check endpoint for monitoring
+- Returns environment info and API status
 
 ## CORS Configuration
 
@@ -107,7 +142,6 @@ Shows a floating connection status indicator in production:
 
 ```typescript
 import { ProductionConnectionIndicator } from "../components"
-
 ;<ProductionConnectionIndicator
   position="top-right"
   showInDevelopment={false}
@@ -120,7 +154,6 @@ Shows a banner when connection is lost:
 
 ```typescript
 import { ConnectionBanner } from "../components"
-
 ;<ConnectionBanner />
 ```
 
@@ -130,7 +163,6 @@ Minimal connection indicator for headers:
 
 ```typescript
 import { ProductionConnectionDot } from "../components"
-
 ;<ProductionConnectionDot />
 ```
 
@@ -140,7 +172,6 @@ Wrap your app with the ConnectionProvider:
 
 ```typescript
 import { ConnectionProvider } from "../contexts/ConnectionContext"
-
 ;<ConnectionProvider checkInterval={30000} autoStart={true}>
   <YourApp />
 </ConnectionProvider>
