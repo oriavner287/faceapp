@@ -52,7 +52,7 @@
   - Write integration tests for face processing pipeline
   - _Requirements: 2.1, 2.2, 2.5, 6.3_
 
-- [ ] 7. Build video fetching and scraping service
+- [x] 7. Build video fetching and scraping service
 
   - Create video fetching service for the three hard-coded URLs
   - Implement web scraping with Puppeteer or Cheerio for video metadata
