@@ -244,15 +244,16 @@ describe("SessionService Tests", () => {
         },
       ]
 
-      // Update threshold to 0.7 (should filter out video2 and video3)
+      // Update threshold to 0.7 (threshold should be updated but results remain unchanged)
       const updateResult = sessionService.updateSessionThreshold(
         session.id,
         0.7
       )
 
       expect(updateResult.success).toBe(true)
-      expect(updateResult.data?.results).toHaveLength(1)
-      expect(updateResult.data?.results.map(r => r.id)).toEqual(["video1"])
+      expect(updateResult.data?.threshold).toBe(0.7)
+      // Results should remain unchanged - filtering is now handled by similarity matching service
+      expect(updateResult.data?.results).toHaveLength(3)
     })
 
     it("should handle threshold update for non-existent session", () => {

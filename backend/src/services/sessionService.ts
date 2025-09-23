@@ -164,7 +164,7 @@ export class SessionService {
   }
 
   /**
-   * Update session threshold and filter results
+   * Update session threshold
    */
   public updateSessionThreshold(
     sessionId: string,
@@ -180,11 +180,6 @@ export class SessionService {
       const session = sessionResult.data
       session.threshold = threshold
 
-      // Filter existing results based on new threshold
-      session.results = session.results.filter(
-        result => result.similarityScore >= threshold
-      )
-
       this.sessions.set(sessionId, session)
 
       return {
@@ -198,6 +193,43 @@ export class SessionService {
         error: {
           code: "INTERNAL_SERVER_ERROR",
           message: `Failed to update session threshold: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`,
+        },
+      }
+    }
+  }
+
+  /**
+   * Update session results
+   */
+  public updateSessionResults(
+    sessionId: string,
+    results: SearchSession["results"]
+  ): SessionResult<SearchSession> {
+    try {
+      const sessionResult = this.getSession(sessionId)
+
+      if (!sessionResult.success || !sessionResult.data) {
+        return sessionResult
+      }
+
+      const session = sessionResult.data
+      session.results = results
+
+      this.sessions.set(sessionId, session)
+
+      return {
+        success: true,
+        data: session,
+      }
+    } catch (error) {
+      console.error("Failed to update session results:", error)
+      return {
+        success: false,
+        error: {
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Failed to update session results: ${
             error instanceof Error ? error.message : "Unknown error"
           }`,
         },

@@ -1,4 +1,5 @@
 import { faceDetectionService } from "./faceDetectionService.js"
+import { similarityMatchingService } from "./similarityMatchingService.js"
 import { VideoMetadata } from "./videoFetchingService.js"
 import type { FaceDetection, VideoMatch } from "../types/index.js"
 
@@ -128,30 +129,36 @@ export class ThumbnailProcessingService {
                 // Find the video metadata for this result
                 const video = batch.find(v => v.id === result.videoId)
                 if (video) {
-                  // Calculate best similarity score
-                  let bestSimilarityScore = 0
-                  for (const face of result.detectedFaces) {
-                    const similarity = this.calculateCosineSimilarity(
+                  // Use the similarity matching service to calculate the best score
+                  const similarityResult =
+                    similarityMatchingService.compareWithVideoFaces(
                       userEmbedding,
-                      face.embedding
+                      result.detectedFaces
                     )
-                    if (similarity > bestSimilarityScore) {
-                      bestSimilarityScore = similarity
-                    }
-                  }
 
-                  // Only include if meets threshold
-                  if (bestSimilarityScore >= similarityThreshold) {
-                    const videoMatch: VideoMatch = {
-                      id: video.id,
-                      title: video.title,
-                      thumbnailUrl: video.thumbnailUrl,
-                      videoUrl: video.videoUrl,
-                      sourceWebsite: video.sourceWebsite,
-                      similarityScore: bestSimilarityScore,
-                      detectedFaces: result.detectedFaces,
+                  if (
+                    similarityResult.success &&
+                    similarityResult.score !== undefined
+                  ) {
+                    // Only include if meets threshold
+                    if (similarityResult.score >= similarityThreshold) {
+                      const videoMatch: VideoMatch = {
+                        id: video.id,
+                        title: video.title,
+                        thumbnailUrl: video.thumbnailUrl,
+                        videoUrl: video.videoUrl,
+                        sourceWebsite: video.sourceWebsite,
+                        similarityScore: similarityResult.score,
+                        detectedFaces: result.detectedFaces,
+                      }
+                      processedVideos.push(videoMatch)
                     }
-                    processedVideos.push(videoMatch)
+                  } else {
+                    // Log similarity calculation error but continue processing
+                    console.warn(
+                      `Similarity calculation failed for video ${video.id}:`,
+                      similarityResult.error?.message
+                    )
                   }
                 }
               } else {
@@ -324,37 +331,6 @@ export class ThumbnailProcessingService {
       batches.push(array.slice(i, i + batchSize))
     }
     return batches
-  }
-
-  /**
-   * Calculate cosine similarity between two embeddings
-   */
-  private calculateCosineSimilarity(
-    embedding1: number[],
-    embedding2: number[]
-  ): number {
-    if (embedding1.length !== embedding2.length) {
-      throw new Error("Embeddings must have the same length")
-    }
-
-    let dotProduct = 0
-    let norm1 = 0
-    let norm2 = 0
-
-    for (let i = 0; i < embedding1.length; i++) {
-      dotProduct += embedding1[i] * embedding2[i]
-      norm1 += embedding1[i] * embedding1[i]
-      norm2 += embedding2[i] * embedding2[i]
-    }
-
-    const magnitude = Math.sqrt(norm1) * Math.sqrt(norm2)
-
-    if (magnitude === 0) {
-      return 0
-    }
-
-    // Return similarity score between 0 and 1
-    return Math.max(0, Math.min(1, dotProduct / magnitude))
   }
 
   /**

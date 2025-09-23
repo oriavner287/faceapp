@@ -61,7 +61,7 @@
   - Create parallel processing for multiple websites with 10 video limit per site
   - _Requirements: 3.1, 3.2, 3.4, 7.3_
 
-- [ ] 8. Implement face detection on video thumbnails
+- [x] 8. Implement face detection on video thumbnails
 
   - Create thumbnail processing pipeline for face detection
   - Generate embeddings from faces detected in video thumbnails
@@ -70,7 +70,7 @@
   - Add error handling and logging for thumbnail processing failures
   - _Requirements: 4.1, 4.2, 3.5_
 
-- [ ] 9. Create similarity matching and scoring system
+- [x] 9. Create similarity matching and scoring system
 
   - Implement cosine similarity calculation between face embeddings
   - Create similarity scoring with configurable threshold (default 0.7)

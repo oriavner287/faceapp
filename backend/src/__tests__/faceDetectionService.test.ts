@@ -297,73 +297,8 @@ describe("FaceDetectionService", () => {
     })
   })
 
-  describe("Similarity Calculation", () => {
-    it("should calculate similarity between identical embeddings", () => {
-      const embedding1 = [1, 2, 3, 4, 5]
-      const embedding2 = [1, 2, 3, 4, 5]
-
-      const similarity = FaceDetectionService.calculateSimilarity(
-        embedding1,
-        embedding2
-      )
-      expect(similarity).toBeCloseTo(1.0, 5)
-    })
-
-    it("should calculate similarity between different embeddings", () => {
-      const embedding1 = [1, 0, 0, 0, 0]
-      const embedding2 = [0, 1, 0, 0, 0]
-
-      const similarity = FaceDetectionService.calculateSimilarity(
-        embedding1,
-        embedding2
-      )
-      expect(similarity).toBeCloseTo(0.0, 5)
-    })
-
-    it("should calculate similarity between similar embeddings", () => {
-      const embedding1 = [1, 2, 3, 4, 5]
-      const embedding2 = [1.1, 2.1, 3.1, 4.1, 5.1]
-
-      const similarity = FaceDetectionService.calculateSimilarity(
-        embedding1,
-        embedding2
-      )
-      expect(similarity).toBeGreaterThan(0.9)
-      expect(similarity).toBeLessThan(1.0)
-    })
-
-    it("should handle zero magnitude embeddings", () => {
-      const embedding1 = [0, 0, 0, 0, 0]
-      const embedding2 = [1, 2, 3, 4, 5]
-
-      const similarity = FaceDetectionService.calculateSimilarity(
-        embedding1,
-        embedding2
-      )
-      expect(similarity).toBe(0)
-    })
-
-    it("should throw error for mismatched embedding lengths", () => {
-      const embedding1 = [1, 2, 3]
-      const embedding2 = [1, 2, 3, 4, 5]
-
-      expect(() => {
-        FaceDetectionService.calculateSimilarity(embedding1, embedding2)
-      }).toThrow("Embeddings must have the same length")
-    })
-
-    it("should return values between 0 and 1", () => {
-      const embedding1 = [1, 2, 3, 4, 5]
-      const embedding2 = [-1, -2, -3, -4, -5]
-
-      const similarity = FaceDetectionService.calculateSimilarity(
-        embedding1,
-        embedding2
-      )
-      expect(similarity).toBeGreaterThanOrEqual(0)
-      expect(similarity).toBeLessThanOrEqual(1)
-    })
-  })
+  // Note: Similarity calculation tests have been moved to similarityMatchingService.test.ts
+  // as the similarity functionality is now handled by the dedicated SimilarityMatchingService
 
   describe("Largest Face Selection", () => {
     it("should select single face when only one exists", () => {
