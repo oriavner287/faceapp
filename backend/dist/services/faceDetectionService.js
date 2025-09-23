@@ -28,8 +28,8 @@ export class FaceDetectionService {
     isInitialized = false;
     modelsPath;
     constructor() {
-        // Models will be loaded from node_modules/face-api.js/weights
-        this.modelsPath = join(process.cwd(), "node_modules", "face-api.js", "weights");
+        // Models will be loaded from local models directory
+        this.modelsPath = join(process.cwd(), "models");
     }
     static getInstance() {
         if (!FaceDetectionService.instance) {
@@ -235,6 +235,25 @@ export class FaceDetectionService {
         }
         // Default to JPEG
         return "image/jpeg";
+    }
+    /**
+     * Detect faces in an image file
+     */
+    async detectFacesInImage(imagePath) {
+        try {
+            const fs = await import("fs");
+            const imageBuffer = await fs.promises.readFile(imagePath);
+            const result = await this.detectFaces(imageBuffer);
+            if (!result.success) {
+                console.warn(`Face detection failed for ${imagePath}:`, result.error?.message);
+                return [];
+            }
+            return result.faces;
+        }
+        catch (error) {
+            console.error(`Error detecting faces in ${imagePath}:`, error);
+            return [];
+        }
     }
     /**
      * Calculate cosine similarity between two embeddings

@@ -115,8 +115,10 @@ describe("VideoFetchingService", () => {
 
     it("should handle errors gracefully when sites are unreachable", async () => {
       // Mock Puppeteer to fail
-      const puppeteer = require("puppeteer")
-      puppeteer.launch.mockRejectedValue(new Error("Browser launch failed"))
+      const puppeteer = await import("puppeteer")
+      ;(
+        puppeteer.launch as jest.MockedFunction<typeof puppeteer.launch>
+      ).mockRejectedValue(new Error("Browser launch failed"))
 
       // Mock fetch to also fail for Cheerio fallback
       ;(global.fetch as jest.MockedFunction<typeof fetch>).mockRejectedValue(

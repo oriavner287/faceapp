@@ -3,5 +3,14 @@ node_modules
 .vscode
 .serena
 
+# Build directories
+dist/
+build/
+out/
+backend/dist/
+frontend/.next/
+frontend/build/
+frontend/out/
+
 # Face detection models (downloaded automatically)
 backend/models/

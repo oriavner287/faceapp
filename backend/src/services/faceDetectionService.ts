@@ -1,6 +1,6 @@
 import * as faceapi from "face-api.js"
 import { join } from "path"
-const sharp = require("sharp")
+import sharp from "sharp"
 import type { FaceDetection, ErrorCode } from "../types/index.js"
 
 // Dynamic import for canvas to handle optional dependency

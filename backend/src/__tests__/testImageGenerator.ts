@@ -1,4 +1,4 @@
-const sharp = require("sharp")
+import sharp from "sharp"
 
 /**
  * Generate test images for face detection testing

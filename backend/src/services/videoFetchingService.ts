@@ -1,6 +1,6 @@
 import puppeteer, { Browser } from "puppeteer"
 import * as cheerio from "cheerio"
-const sharp = require("sharp")
+import sharp from "sharp"
 import { promises as fs } from "fs"
 import * as path from "path"
 import { VIDEO_CONSTRAINTS } from "../types/index.js"

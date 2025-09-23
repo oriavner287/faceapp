@@ -16,6 +16,17 @@ export const FetchVideosInputSchema = z.object({
     embedding: z.array(z.number()),
     threshold: z.number().min(0.1).max(1.0).optional().default(0.7),
 });
+// Additional schemas for face router endpoints
+export const GetSessionInputSchema = z.object({
+    sessionId: z.string().min(1),
+});
+export const UpdateThresholdInputSchema = z.object({
+    sessionId: z.string().min(1),
+    threshold: z.number().min(0.1).max(1.0),
+});
+export const DeleteSessionInputSchema = z.object({
+    sessionId: z.string().min(1),
+});
 // Output type schemas (for runtime validation if needed)
 export const ProcessImageOutputSchema = z.object({
     success: z.boolean(),
@@ -87,4 +98,92 @@ export const FetchVideosOutputSchema = z.object({
     })),
     processedSites: z.array(z.string()),
     errors: z.array(z.string()),
+});
+// Output schemas for face router endpoints
+export const GetSessionOutputSchema = z.object({
+    success: z.boolean(),
+    session: z
+        .object({
+        id: z.string(),
+        status: z.enum(["processing", "completed", "error"]),
+        results: z.array(z.any()),
+        threshold: z.number(),
+        createdAt: z.string(),
+        expiresAt: z.string(),
+    })
+        .optional(),
+    error: z
+        .object({
+        code: z.string(),
+        message: z.string(),
+    })
+        .optional(),
+});
+export const UpdateThresholdOutputSchema = z.object({
+    success: z.boolean(),
+    updatedResults: z.array(z.any()).optional(),
+    error: z
+        .object({
+        code: z.string(),
+        message: z.string(),
+    })
+        .optional(),
+});
+export const DeleteSessionOutputSchema = z.object({
+    success: z.boolean(),
+    error: z
+        .object({
+        code: z.string(),
+        message: z.string(),
+    })
+        .optional(),
+});
+export const HealthCheckOutputSchema = z.object({
+    success: z.boolean(),
+    status: z.string(),
+    error: z.string().optional(),
+    details: z
+        .object({
+        modelsAvailable: z.boolean().optional(),
+        initializationStatus: z.string().optional(),
+        activeSessionsCount: z.number().optional(),
+        responseTimeMs: z.number().optional(),
+    })
+        .optional(),
+    timestamp: z.string(),
+});
+export const SessionStatsOutputSchema = z.object({
+    success: z.boolean(),
+    stats: z
+        .object({
+        totalActiveSessions: z.number(),
+        sessionsByStatus: z.object({
+            processing: z.number(),
+            completed: z.number(),
+            error: z.number(),
+        }),
+        oldestSession: z.number().nullable(),
+        newestSession: z.number().nullable(),
+    })
+        .optional(),
+    error: z
+        .object({
+        code: z.string(),
+        message: z.string(),
+    })
+        .optional(),
+    timestamp: z.string(),
+});
+export const CleanupSessionsOutputSchema = z.object({
+    success: z.boolean(),
+    cleaned: z.number().optional(),
+    before: z.number().optional(),
+    after: z.number().optional(),
+    error: z
+        .object({
+        code: z.string(),
+        message: z.string(),
+    })
+        .optional(),
+    timestamp: z.string(),
 });
