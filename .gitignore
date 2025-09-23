@@ -1,6 +1,7 @@
 node_modules
 .next
 .vscode
+.serena
 
 # Face detection models (downloaded automatically)
 backend/models/

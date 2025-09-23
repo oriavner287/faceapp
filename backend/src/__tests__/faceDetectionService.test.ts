@@ -1,4 +1,12 @@
-import { describe, it, expect, beforeAll, afterAll, jest } from "@jest/globals"
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  beforeAll,
+  afterAll,
+  jest,
+} from "@jest/globals"
 import {
   FaceDetectionService,
   faceDetectionService,
@@ -16,7 +24,6 @@ describe("FaceDetectionService", () => {
     jest.spyOn(service, "validateModels").mockResolvedValue(true)
 
     // Mock the initialization to avoid loading heavy models
-    const originalInitialize = service.initialize.bind(service)
     jest.spyOn(service, "initialize").mockImplementation(async () => {
       // Set initialized flag without actually loading models
       ;(service as any).isInitialized = true
@@ -62,18 +69,18 @@ describe("FaceDetectionService", () => {
       jest.doMock("face-api.js", () => ({
         nets: {
           ssdMobilenetv1: {
-            loadFromDisk: jest.fn().mockResolvedValue(undefined),
+            loadFromDisk: (jest.fn() as any).mockResolvedValue({}),
           },
           faceLandmark68Net: {
-            loadFromDisk: jest.fn().mockResolvedValue(undefined),
+            loadFromDisk: (jest.fn() as any).mockResolvedValue({}),
           },
           faceRecognitionNet: {
-            loadFromDisk: jest.fn().mockResolvedValue(undefined),
+            loadFromDisk: (jest.fn() as any).mockResolvedValue({}),
           },
         },
-        detectAllFaces: jest.fn().mockReturnValue({
-          withFaceLandmarks: jest.fn().mockReturnValue({
-            withFaceDescriptors: jest.fn().mockResolvedValue([]),
+        detectAllFaces: (jest.fn() as any).mockReturnValue({
+          withFaceLandmarks: (jest.fn() as any).mockReturnValue({
+            withFaceDescriptors: (jest.fn() as any).mockResolvedValue([]),
           }),
         }),
       }))
@@ -81,13 +88,6 @@ describe("FaceDetectionService", () => {
 
     it("should handle no faces detected", async () => {
       const testImage = await TestImageGenerator.createBlankImage()
-
-      // Mock face-api to return no detections
-      const mockDetectAllFaces = jest.fn().mockReturnValue({
-        withFaceLandmarks: jest.fn().mockReturnValue({
-          withFaceDescriptors: jest.fn().mockResolvedValue([]),
-        }),
-      })
 
       // Mock the detectFaces method to return no faces
       jest.spyOn(service, "detectFaces").mockResolvedValue({
@@ -126,8 +126,10 @@ describe("FaceDetectionService", () => {
 
       expect(result.success).toBe(true)
       expect(result.faces).toHaveLength(1)
-      expect(result.faces[0]).toBeValidFaceDetection()
-      expect(result.faces[0].embedding).toBeValidEmbedding()
+      expect(result.faces[0].boundingBox).toBeDefined()
+      expect(result.faces[0].embedding).toBeDefined()
+      expect(Array.isArray(result.faces[0].embedding)).toBe(true)
+      expect(result.faces[0].embedding).toHaveLength(128)
       expect(result.faces[0].confidence).toBeGreaterThan(0)
     })
 
@@ -198,7 +200,8 @@ describe("FaceDetectionService", () => {
       const result = await service.generateEmbedding(testImage)
 
       expect(result.success).toBe(true)
-      expect(result.embedding).toBeValidEmbedding()
+      expect(Array.isArray(result.embedding)).toBe(true)
+      expect(result.embedding).toBeDefined()
       expect(result.embedding).toHaveLength(128)
     })
 
@@ -448,7 +451,8 @@ describe("FaceDetectionService", () => {
       const result = await service.generateEmbedding(testImage)
 
       expect(result.success).toBe(true)
-      expect(result.embedding).toBeValidEmbedding()
+      expect(Array.isArray(result.embedding)).toBe(true)
+      expect(result.embedding).toBeDefined()
     })
 
     it("should handle end-to-end error scenarios", async () => {

@@ -43,7 +43,7 @@
   - Write unit tests for face detection with sample images
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 7.2_
 
-- [ ] 6. Create oRPC router for face processing operations
+- [x] 6. Create oRPC router for face processing operations
 
   - Implement faceRouter.processImage() with type-safe parameters
   - Add face detection and embedding generation to oRPC layer

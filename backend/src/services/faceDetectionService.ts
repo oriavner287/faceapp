@@ -1,6 +1,6 @@
 import * as faceapi from "face-api.js"
 import { join } from "path"
-import sharp from "sharp"
+const sharp = require("sharp")
 import type { FaceDetection, ErrorCode } from "../types/index.js"
 
 // Dynamic import for canvas to handle optional dependency
@@ -295,6 +295,31 @@ export class FaceDetectionService {
 
     // Default to JPEG
     return "image/jpeg"
+  }
+
+  /**
+   * Detect faces in an image file
+   */
+  public async detectFacesInImage(imagePath: string): Promise<FaceDetection[]> {
+    try {
+      const fs = await import("fs")
+      const imageBuffer = await fs.promises.readFile(imagePath)
+
+      const result = await this.detectFaces(imageBuffer)
+
+      if (!result.success) {
+        console.warn(
+          `Face detection failed for ${imagePath}:`,
+          result.error?.message
+        )
+        return []
+      }
+
+      return result.faces
+    } catch (error) {
+      console.error(`Error detecting faces in ${imagePath}:`, error)
+      return []
+    }
   }
 
   /**
