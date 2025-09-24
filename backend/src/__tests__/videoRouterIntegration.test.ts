@@ -1,18 +1,7 @@
 import { describe, it, expect, jest, beforeEach } from "@jest/globals"
 import { videoFetchingService } from "../services/videoFetchingService.js"
-import { faceDetectionService } from "../services/faceDetectionService.js"
+import { thumbnailProcessingService } from "../services/thumbnailProcessingService.js"
 import type { FetchVideosOutput } from "../contracts/api.js"
-
-// Mock the video router
-const mockFetchFromSites = jest.fn() as any as jest.MockedFunction<
-  (input: {
-    embedding: number[]
-    threshold?: number
-  }) => Promise<FetchVideosOutput>
->
-const videoRouter = {
-  fetchFromSites: mockFetchFromSites,
-}
 
 // Mock the services
 jest.mock("../services/videoFetchingService.js", () => ({
@@ -24,23 +13,109 @@ jest.mock("../services/videoFetchingService.js", () => ({
   },
 }))
 
-jest.mock("../services/faceDetectionService.js", () => ({
-  faceDetectionService: {
-    detectFacesInImage: jest.fn(),
+jest.mock("../services/thumbnailProcessingService.js", () => ({
+  thumbnailProcessingService: {
+    processThumbnailsForFaceDetection: jest.fn(),
   },
 }))
+
+// Create a mock implementation of the video router logic
+async function mockVideoRouterFetchFromSites(input: {
+  embedding: number[]
+  threshold?: number
+}): Promise<FetchVideosOutput> {
+  try {
+    console.log(
+      "Fetching videos with embedding length:",
+      input.embedding.length
+    )
+    console.log("Using threshold:", input.threshold || 0.7)
+
+    // Step 1: Fetch videos from all configured websites
+    const fetchResult = await videoFetchingService.fetchVideosFromAllSites({
+      useHeadless: true,
+      timeout: 10000,
+    })
+
+    console.log(
+      `Fetched ${fetchResult.results.length} videos from ${fetchResult.processedSites.length} sites`
+    )
+
+    if (fetchResult.results.length === 0) {
+      return {
+        results: [],
+        processedSites: fetchResult.processedSites,
+        errors: [...fetchResult.errors, "No videos found from any site"],
+      }
+    }
+
+    // Step 2: Download thumbnails for face detection
+    const downloadResult = await videoFetchingService.downloadThumbnails(
+      fetchResult.results
+    )
+
+    console.log(
+      `Downloaded ${downloadResult.processedVideos.length} thumbnails`
+    )
+
+    // Step 3: Process thumbnails for face detection and similarity matching
+    const processingResult =
+      await thumbnailProcessingService.processThumbnailsForFaceDetection(
+        downloadResult.processedVideos,
+        input.embedding,
+        input.threshold || 0.7,
+        {
+          batchSize: 5,
+          maxConcurrency: 3,
+          skipOnError: true,
+          logProgress: true,
+        }
+      )
+
+    const videoMatches = processingResult.processedVideos
+    const processingErrors: string[] = [
+      ...fetchResult.errors,
+      ...downloadResult.errors,
+      ...processingResult.errors,
+    ]
+
+    // Step 4: Clean up temporary files
+    await videoFetchingService.cleanupThumbnails(downloadResult.processedVideos)
+
+    console.log(`Found ${videoMatches.length} matching videos`)
+
+    return {
+      results: videoMatches,
+      processedSites: fetchResult.processedSites,
+      errors: processingErrors,
+    }
+  } catch (error) {
+    console.error("Fetch videos error:", error)
+
+    // Ensure cleanup even on error
+    try {
+      await videoFetchingService.closeBrowser()
+    } catch (cleanupError) {
+      console.error("Cleanup error:", cleanupError)
+    }
+
+    return {
+      results: [],
+      processedSites: [],
+      errors: [error instanceof Error ? error.message : "Unknown error"],
+    }
+  }
+}
 
 describe("Video Router Integration", () => {
   const mockVideoFetchingService = videoFetchingService as jest.Mocked<
     typeof videoFetchingService
   >
-  const mockFaceDetectionService = faceDetectionService as jest.Mocked<
-    typeof faceDetectionService
-  >
+  const mockThumbnailProcessingService =
+    thumbnailProcessingService as jest.Mocked<typeof thumbnailProcessingService>
 
   beforeEach(() => {
     jest.clearAllMocks()
-    mockFetchFromSites.mockClear()
   })
 
   describe("fetchFromSites handler", () => {
@@ -93,50 +168,41 @@ describe("Video Router Integration", () => {
         errors: [],
       })
 
-      // Mock face detection - first video has matching face, second doesn't
-      mockFaceDetectionService.detectFacesInImage
-        .mockResolvedValueOnce([
-          {
-            boundingBox: { x: 10, y: 10, width: 100, height: 100 },
-            embedding: new Array(128).fill(0.8), // High similarity
-            confidence: 0.95,
+      // Mock thumbnail processing service - first video has matching face, second doesn't
+      mockThumbnailProcessingService.processThumbnailsForFaceDetection.mockResolvedValue(
+        {
+          success: true,
+          processedVideos: [
+            {
+              id: "video-1",
+              title: "Test Video 1",
+              thumbnailUrl: "https://example.com/thumb1.jpg",
+              videoUrl: "https://example.com/video1",
+              sourceWebsite: "Site 1",
+              similarityScore: 0.8,
+              detectedFaces: [
+                {
+                  boundingBox: { x: 10, y: 10, width: 100, height: 100 },
+                  embedding: new Array(128).fill(0.8),
+                  confidence: 0.95,
+                },
+              ],
+            },
+          ],
+          errors: [],
+          stats: {
+            totalProcessed: 2,
+            facesDetected: 1,
+            noFacesFound: 1,
+            processingErrors: 0,
           },
-        ])
-        .mockResolvedValueOnce([
-          {
-            boundingBox: { x: 20, y: 20, width: 80, height: 80 },
-            embedding: new Array(128).fill(0.1), // Low similarity
-            confidence: 0.85,
-          },
-        ])
+        }
+      )
 
       mockVideoFetchingService.cleanupThumbnails.mockResolvedValue()
 
-      // Mock the router response
-      mockFetchFromSites.mockResolvedValue({
-        results: [
-          {
-            id: "video-1",
-            title: "Test Video 1",
-            thumbnailUrl: "https://example.com/thumb1.jpg",
-            videoUrl: "https://example.com/video1",
-            sourceWebsite: "Site 1",
-            similarityScore: 0.8,
-            detectedFaces: [
-              {
-                boundingBox: { x: 10, y: 10, width: 100, height: 100 },
-                embedding: new Array(128).fill(0.8),
-                confidence: 0.95,
-              },
-            ],
-          },
-        ],
-        processedSites: ["Site 1", "Site 2", "Site 3"],
-        errors: [],
-      })
-
       // Execute the procedure
-      const result = await videoRouter.fetchFromSites({
+      const result = await mockVideoRouterFetchFromSites({
         embedding: inputEmbedding,
         threshold,
       })
@@ -156,8 +222,13 @@ describe("Video Router Integration", () => {
         timeout: 10000,
       })
       expect(mockVideoFetchingService.downloadThumbnails).toHaveBeenCalled()
-      expect(mockFaceDetectionService.detectFacesInImage).toHaveBeenCalledTimes(
-        2
+      expect(
+        mockThumbnailProcessingService.processThumbnailsForFaceDetection
+      ).toHaveBeenCalledWith(
+        expect.any(Array),
+        inputEmbedding,
+        threshold,
+        expect.any(Object)
       )
       expect(mockVideoFetchingService.cleanupThumbnails).toHaveBeenCalled()
     })
@@ -171,14 +242,7 @@ describe("Video Router Integration", () => {
         errors: ["No videos found"],
       })
 
-      // Mock the router response for no videos found
-      mockFetchFromSites.mockResolvedValue({
-        results: [],
-        processedSites: ["Site 1", "Site 2", "Site 3"],
-        errors: ["No videos found from any site"],
-      })
-
-      const result = await videoRouter.fetchFromSites({
+      const result = await mockVideoRouterFetchFromSites({
         embedding: inputEmbedding,
         threshold: 0.7,
       })
@@ -218,19 +282,24 @@ describe("Video Router Integration", () => {
         errors: [],
       })
 
-      // Mock no faces detected
-      mockFaceDetectionService.detectFacesInImage.mockResolvedValue([])
+      // Mock no faces detected in thumbnail processing
+      mockThumbnailProcessingService.processThumbnailsForFaceDetection.mockResolvedValue(
+        {
+          success: true,
+          processedVideos: [],
+          errors: [],
+          stats: {
+            totalProcessed: 1,
+            facesDetected: 0,
+            noFacesFound: 1,
+            processingErrors: 0,
+          },
+        }
+      )
 
       mockVideoFetchingService.cleanupThumbnails.mockResolvedValue()
 
-      // Mock the router response for no faces detected
-      mockFetchFromSites.mockResolvedValue({
-        results: [],
-        processedSites: ["Site 1"],
-        errors: [],
-      })
-
-      const result = await videoRouter.fetchFromSites({
+      const result = await mockVideoRouterFetchFromSites({
         embedding: inputEmbedding,
         threshold: 0.7,
       })
@@ -270,21 +339,24 @@ describe("Video Router Integration", () => {
         errors: [],
       })
 
-      // Mock face detection error
-      mockFaceDetectionService.detectFacesInImage.mockRejectedValue(
-        new Error("Face detection failed")
+      // Mock thumbnail processing error
+      mockThumbnailProcessingService.processThumbnailsForFaceDetection.mockResolvedValue(
+        {
+          success: false,
+          processedVideos: [],
+          errors: ["Face detection failed"],
+          stats: {
+            totalProcessed: 1,
+            facesDetected: 0,
+            noFacesFound: 0,
+            processingErrors: 1,
+          },
+        }
       )
 
       mockVideoFetchingService.cleanupThumbnails.mockResolvedValue()
 
-      // Mock the router response for face detection error
-      mockFetchFromSites.mockResolvedValue({
-        results: [],
-        processedSites: ["Site 1"],
-        errors: ["Face detection failed"],
-      })
-
-      const result = await videoRouter.fetchFromSites({
+      const result = await mockVideoRouterFetchFromSites({
         embedding: inputEmbedding,
         threshold: 0.7,
       })
@@ -344,64 +416,55 @@ describe("Video Router Integration", () => {
         errors: [],
       })
 
-      // Mock face detection - video-1 has lower similarity, video-2 has higher
-      mockFaceDetectionService.detectFacesInImage
-        .mockResolvedValueOnce([
-          {
-            boundingBox: { x: 10, y: 10, width: 100, height: 100 },
-            embedding: new Array(128).fill(0.75), // Medium similarity
-            confidence: 0.95,
+      // Mock thumbnail processing with sorted results (video-2 has higher similarity)
+      mockThumbnailProcessingService.processThumbnailsForFaceDetection.mockResolvedValue(
+        {
+          success: true,
+          processedVideos: [
+            {
+              id: "video-2",
+              title: "Test Video 2",
+              thumbnailUrl: "https://example.com/thumb2.jpg",
+              videoUrl: "https://example.com/video2",
+              sourceWebsite: "Site 2",
+              similarityScore: 0.9,
+              detectedFaces: [
+                {
+                  boundingBox: { x: 20, y: 20, width: 80, height: 80 },
+                  embedding: new Array(128).fill(0.9),
+                  confidence: 0.85,
+                },
+              ],
+            },
+            {
+              id: "video-1",
+              title: "Test Video 1",
+              thumbnailUrl: "https://example.com/thumb1.jpg",
+              videoUrl: "https://example.com/video1",
+              sourceWebsite: "Site 1",
+              similarityScore: 0.75,
+              detectedFaces: [
+                {
+                  boundingBox: { x: 10, y: 10, width: 100, height: 100 },
+                  embedding: new Array(128).fill(0.75),
+                  confidence: 0.95,
+                },
+              ],
+            },
+          ],
+          errors: [],
+          stats: {
+            totalProcessed: 2,
+            facesDetected: 2,
+            noFacesFound: 0,
+            processingErrors: 0,
           },
-        ])
-        .mockResolvedValueOnce([
-          {
-            boundingBox: { x: 20, y: 20, width: 80, height: 80 },
-            embedding: new Array(128).fill(0.9), // High similarity
-            confidence: 0.85,
-          },
-        ])
+        }
+      )
 
       mockVideoFetchingService.cleanupThumbnails.mockResolvedValue()
 
-      // Mock the router response with sorted results
-      mockFetchFromSites.mockResolvedValue({
-        results: [
-          {
-            id: "video-2",
-            title: "Test Video 2",
-            thumbnailUrl: "https://example.com/thumb2.jpg",
-            videoUrl: "https://example.com/video2",
-            sourceWebsite: "Site 2",
-            similarityScore: 0.9,
-            detectedFaces: [
-              {
-                boundingBox: { x: 20, y: 20, width: 80, height: 80 },
-                embedding: new Array(128).fill(0.9),
-                confidence: 0.85,
-              },
-            ],
-          },
-          {
-            id: "video-1",
-            title: "Test Video 1",
-            thumbnailUrl: "https://example.com/thumb1.jpg",
-            videoUrl: "https://example.com/video1",
-            sourceWebsite: "Site 1",
-            similarityScore: 0.75,
-            detectedFaces: [
-              {
-                boundingBox: { x: 10, y: 10, width: 100, height: 100 },
-                embedding: new Array(128).fill(0.75),
-                confidence: 0.95,
-              },
-            ],
-          },
-        ],
-        processedSites: ["Site 1", "Site 2"],
-        errors: [],
-      })
-
-      const result = await videoRouter.fetchFromSites({
+      const result = await mockVideoRouterFetchFromSites({
         embedding: inputEmbedding,
         threshold: 0.7,
       })
@@ -423,14 +486,7 @@ describe("Video Router Integration", () => {
 
       mockVideoFetchingService.closeBrowser.mockResolvedValue()
 
-      // Mock the router response for service error
-      mockFetchFromSites.mockResolvedValue({
-        results: [],
-        processedSites: [],
-        errors: ["Service error"],
-      })
-
-      const result = await videoRouter.fetchFromSites({
+      const result = await mockVideoRouterFetchFromSites({
         embedding: inputEmbedding,
         threshold: 0.7,
       })
@@ -449,14 +505,7 @@ describe("Video Router Integration", () => {
         errors: [],
       })
 
-      // Mock the router response for default threshold
-      mockFetchFromSites.mockResolvedValue({
-        results: [],
-        processedSites: [],
-        errors: [],
-      })
-
-      await videoRouter.fetchFromSites({
+      await mockVideoRouterFetchFromSites({
         embedding: inputEmbedding,
         // threshold not provided, should use default 0.7
       })

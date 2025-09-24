@@ -51,8 +51,6 @@
   - **Security**: Use secure temporary directories with restricted access and automatic purging
   - Add image preprocessing and validation before face detection with security checks
   - **Security**: Sanitize image metadata and strip potentially dangerous EXIF data
-  - Write comprehensive unit tests for server action validation, error handling, and security scenarios
-  - **Security**: Test malicious file uploads, oversized files, and injection attempts
   - **Privacy**: Implement immediate cleanup of uploaded files after processing completion
   - _Requirements: 1.1, 1.2, 1.4, 6.1, 7.1, 7.6_
   - _Steering: Follow frontend-expert.md for server actions, security-expert.md for file upload security, tech.md for Next.js 15_
@@ -69,9 +67,6 @@
   - Add support for multiple face detection with largest face selection and privacy protection
   - **Privacy**: Implement automatic cleanup of intermediate face detection data
   - **Security**: Add rate limiting to prevent abuse of face detection endpoints
-  - Write comprehensive unit tests for face detection with sample images and security scenarios
-  - **Security**: Test with adversarial images, malformed inputs, and edge cases
-  - **Privacy**: Ensure all test data is properly cleaned up and no biometric data persists
   - **Audit**: Log all face detection operations for GDPR compliance and security monitoring
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 7.2, 6.1, 6.6_
   - _Steering: Follow backend-expert.md for service patterns, security-expert.md for biometric protection, tech.md for face-api.js_
@@ -88,8 +83,6 @@
   - Implement secure session management for temporary data storage with encryption
   - **Privacy**: Add automatic session expiration and cleanup mechanisms for biometric data
   - **Security**: Implement access logging and audit trails for all face processing operations
-  - Write comprehensive integration tests for face processing pipeline including security scenarios
-  - **Security**: Test authentication bypass attempts, malformed inputs, and rate limiting
   - **Privacy**: Verify that all temporary biometric data is properly cleaned up after processing
   - _Requirements: 2.1, 2.2, 2.5, 6.3, 6.6_
   - _Steering: Follow tech.md for oRPC configuration, security-expert.md for API security, backend-expert.md for router patterns_
@@ -148,9 +141,6 @@
   - Add support for adjustable similarity thresholds with comprehensive input validation
   - **Security**: Log threshold changes for audit purposes and monitor for suspicious patterns
   - **Security**: Implement rate limiting on similarity calculations to prevent computational abuse
-  - Write comprehensive unit tests for similarity calculations with known test cases and security scenarios
-  - **Security**: Test with malformed embeddings, invalid thresholds, and edge cases
-  - **Privacy**: Ensure all test embeddings are properly cleaned up and not persisted
   - **Audit**: Log all similarity matching operations for compliance and security monitoring
   - _Requirements: 4.3, 4.4, 4.5, 8.1, 8.2, 8.6_
   - _Steering: Follow backend-expert.md for service patterns, security-expert.md for biometric data security, tech.md for TypeScript_
@@ -287,21 +277,8 @@
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
   - _Steering: Follow frontend-expert.md error handling patterns, backend error handling, tech.md for validation schemas_
 
-- [ ] 17. Create end-to-end integration tests
+- [ ] 17. Optimize performance and add production configurations
 
-  - Write integration tests for complete user workflow using Vitest for frontend and Jest for backend
-  - Test face detection with various image types and qualities following testing guidelines from frontend-expert.md
-  - Create mock video websites for testing scraping functionality using proper mocking patterns
-  - Test similarity matching with known face pairs using unit test patterns with known test cases
-  - Implement performance tests for concurrent users following backend testing patterns
-  - Use proper test organization: frontend tests in `/frontend/src/test/`, backend tests in `/backend/src/__tests__/`
-  - Follow testing patterns from steering guidelines with proper mocking and test utilities
-  - Implement component testing with @testing-library/react following frontend-expert.md examples
-  - Use proper TypeScript in tests and follow ESM module patterns
-  - _Requirements: All requirements validation_
-  - _Steering: Follow frontend-expert.md Component Testing example, tech.md for testing configuration, structure.md for test organization_
-
-- [ ] 18. Optimize performance and add production configurations
   - Implement image compression and resizing optimizations using Sharp following backend image processing patterns
   - Add caching for face detection models and thumbnails using proper caching strategies from performance guidelines
   - Configure production build optimizations for both Next.js frontend and Node.js backend following tech.md guidelines
@@ -313,3 +290,59 @@
   - Configure production builds using native TypeScript compiler and proper build scripts from tech.md
   - _Requirements: Performance optimization for all features_
   - _Steering: Follow frontend-expert.md performance patterns, tech.md build configuration, backend optimization guidelines_
+
+- [ ] 18. Create comprehensive test suite for all components and services
+
+  - **Backend Testing**: Write comprehensive unit tests for all services using Jest with ts-jest
+
+    - Test face detection service with various image types, qualities, and edge cases
+    - **Security**: Test malicious file uploads, oversized files, and injection attempts on upload service
+    - Test similarity matching service with known face pairs and boundary conditions
+    - **Security**: Test with malformed embeddings, invalid thresholds, and edge cases
+    - Test video fetching service with mock websites and error scenarios
+    - Test thumbnail processing with various image formats and security scenarios
+    - **Privacy**: Ensure all test data is properly cleaned up and no biometric data persists
+
+  - **Frontend Testing**: Write component tests using Vitest and @testing-library/react
+
+    - Test ImageUpload component with file validation and error handling
+    - Test SearchResults component with various result sets and edge cases
+    - Test loading and error components with different error scenarios
+    - Test main page integration with server actions and state management
+    - **Security**: Test component security (no sensitive data exposure, proper error sanitization)
+
+  - **Integration Testing**: Create end-to-end workflow tests
+
+    - Test complete user workflow from image upload to search results
+    - Create mock video websites for testing scraping functionality using proper mocking patterns
+    - Test authentication and session management flows
+    - **Security**: Test authentication bypass attempts, malformed inputs, and rate limiting
+    - **Privacy**: Verify that all temporary biometric data is properly cleaned up after processing
+
+  - **Security Testing**: Comprehensive security validation tests
+
+    - Test input validation and sanitization across all endpoints
+    - Test rate limiting and DoS protection mechanisms
+    - Test file upload security (malicious files, size limits, type validation)
+    - Test biometric data encryption and cleanup mechanisms
+    - **Audit**: Verify audit logging for all biometric data operations
+
+  - **Performance Testing**: Load and stress testing
+
+    - Test concurrent face detection operations and resource usage
+    - Test large file upload handling and memory management
+    - Test video scraping performance with multiple concurrent requests
+    - Test similarity matching performance with large embedding sets
+
+  - **Test Organization and Configuration**:
+
+    - Organize backend tests in `/backend/src/__tests__/` following current structure
+    - Organize frontend tests in `/frontend/src/test/` with proper test utilities
+    - Configure Jest for backend with ESM support and security-focused test patterns
+    - Configure Vitest for frontend with jsdom environment and component testing
+    - Use proper TypeScript in tests and follow ESM module patterns
+    - Implement proper mocking patterns for external services and APIs
+    - Add test coverage reporting and quality gates
+
+  - _Requirements: All requirements validation and security compliance_
+  - _Steering: Follow frontend-expert.md Component Testing example, tech.md for testing configuration, security-expert.md for security testing, structure.md for test organization_

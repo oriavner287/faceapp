@@ -68,8 +68,17 @@ jest.mock("sharp", () => {
       Buffer.from("fake-image-data")
     ),
   })
-  return { default: mockSharp }
+  return mockSharp
 })
+
+// Mock fs/promises
+jest.mock("fs/promises", () => ({
+  writeFile: jest.fn().mockResolvedValue(undefined),
+  mkdir: jest.fn().mockResolvedValue(undefined),
+  rm: jest.fn().mockResolvedValue(undefined),
+  rmdir: jest.fn().mockResolvedValue(undefined),
+  unlink: jest.fn().mockResolvedValue(undefined),
+}))
 
 describe("VideoFetchingService", () => {
   let service: VideoFetchingService
@@ -81,7 +90,7 @@ describe("VideoFetchingService", () => {
 
   afterAll(async () => {
     try {
-      await fs.rmdir(tempDir, { recursive: true })
+      await fs.rm(tempDir, { recursive: true })
     } catch (error) {
       console.warn("Failed to clean up test temp directory:", error)
     }
@@ -146,17 +155,22 @@ describe("VideoFetchingService", () => {
 
       // Reset all mocks first
       jest.clearAllMocks()
+
+      // Mock fetch to return a proper response
       ;(global.fetch as jest.MockedFunction<typeof fetch>).mockResolvedValue({
         ok: true,
-        arrayBuffer: (jest.fn() as any).mockResolvedValue(
-          new ArrayBuffer(1024)
-        ),
+        arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(1024)),
       } as any)
+
+      // fs.writeFile is already mocked at the module level
 
       const result = await service.downloadThumbnails(mockVideos)
 
       expect(result.processedVideos).toHaveLength(1)
       expect(result.processedVideos[0]).toHaveProperty("localThumbnailPath")
+      expect(result.processedVideos[0].localThumbnailPath).toContain(
+        "test-1-thumbnail.jpg"
+      )
     })
   })
 
