@@ -8,6 +8,7 @@
   - Set up project directory structure for components, services, and API routes
   - Install core dependencies: React Dropzone, Sharp, face-api.js
   - _Requirements: 1.1, 1.3_
+  - _Steering: Follow tech.md for Next.js 15 App Router configuration, structure.md for project organization, frontend-expert.md for TypeScript setup_
 
 - [x] 2. Configure oRPC with Hono for type-safe backend services
 
@@ -16,6 +17,7 @@
   - Create TypeScript interfaces for API contracts and data models
   - Configure development and build scripts for oRPC integration
   - _Requirements: 2.2, 4.2_
+  - _Steering: Follow tech.md for oRPC configuration, structure.md for backend organization, backend-expert.md for service layer patterns_
 
 - [x] 3. Implement core data models and TypeScript interfaces
 
@@ -24,6 +26,7 @@
   - Set up error handling types and response formats
   - Create utility types for face embeddings and similarity scores
   - _Requirements: 2.2, 4.2, 7.1_
+  - _Steering: Follow tech.md for Zod validation schemas, structure.md for contracts organization, backend-expert.md for TypeScript interface patterns_
 
 - [x] 4. Build image upload server action and file handling
 
@@ -33,6 +36,7 @@
   - Add image preprocessing and validation before face detection
   - Write unit tests for server action validation and error handling
   - _Requirements: 1.1, 1.2, 1.4, 6.1, 7.1_
+  - _Steering: Follow frontend-expert.md for server actions patterns, tech.md for Next.js 15 configuration, structure.md for file organization_
 
 - [x] 5. Implement face detection and embedding generation service
 
@@ -42,6 +46,7 @@
   - Add support for multiple face detection with largest face selection
   - Write unit tests for face detection with sample images
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 7.2_
+  - _Steering: Follow backend-expert.md for service layer patterns, tech.md for face-api.js configuration, structure.md for services organization_
 
 - [x] 6. Create oRPC router for face processing operations
 
@@ -51,6 +56,7 @@
   - Implement session management for temporary data storage
   - Write integration tests for face processing pipeline
   - _Requirements: 2.1, 2.2, 2.5, 6.3_
+  - _Steering: Follow tech.md for oRPC router configuration, backend-expert.md for router patterns, structure.md for routers organization_
 
 - [x] 7. Build video fetching and scraping service
 
@@ -60,6 +66,7 @@
   - Implement rate limiting and error handling for website requests
   - Create parallel processing for multiple websites with 10 video limit per site
   - _Requirements: 3.1, 3.2, 3.4, 7.3_
+  - _Steering: Follow backend-expert.md for service layer patterns, tech.md for Puppeteer configuration, structure.md for services organization_
 
 - [x] 8. Implement face detection on video thumbnails
 
@@ -69,6 +76,7 @@
   - Implement batch processing for multiple thumbnails
   - Add error handling and logging for thumbnail processing failures
   - _Requirements: 4.1, 4.2, 3.5_
+  - _Steering: Follow backend-expert.md for service layer patterns, tech.md for Sharp image processing, structure.md for services organization_
 
 - [x] 9. Create similarity matching and scoring system
 
@@ -78,6 +86,7 @@
   - Add support for adjustable similarity thresholds
   - Write unit tests for similarity calculations with known test cases
   - _Requirements: 4.3, 4.4, 4.5, 8.1, 8.2_
+  - _Steering: Follow backend-expert.md for service layer patterns, tech.md for TypeScript configuration, structure.md for services organization_
 
 - [ ] 10. Create server actions for video search and operations
 
