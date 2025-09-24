@@ -1,4 +1,44 @@
 // Core data models for the face video search application
+// Security-focused interfaces following security-expert.md guidelines
+
+// Audit trail interface for GDPR compliance
+export interface AccessLogEntry {
+  timestamp: Date
+  operation: "create" | "read" | "update" | "delete" | "encrypt" | "decrypt"
+  userId?: string
+  sessionId: string
+  dataType: "face_embedding" | "image_data" | "search_results"
+  success: boolean
+  errorCode?: string
+  ipAddress?: string
+  userAgent?: string
+}
+
+// Security event logging interface
+export interface SecurityEvent {
+  timestamp: Date
+  eventType:
+    | "failed_auth"
+    | "suspicious_request"
+    | "rate_limit_exceeded"
+    | "malicious_file"
+    | "invalid_input"
+  severity: "low" | "medium" | "high" | "critical"
+  sessionId?: string
+  ipAddress?: string
+  userAgent?: string
+  details: Record<string, any>
+  resolved: boolean
+}
+
+// Encryption metadata interface
+export interface EncryptionMetadata {
+  algorithm: string
+  keyId: string
+  iv: string
+  encryptedAt: Date
+  expiresAt: Date
+}
 
 export interface FaceDetection {
   boundingBox: {
@@ -7,8 +47,11 @@ export interface FaceDetection {
     width: number
     height: number
   }
-  embedding: number[]
+  embedding: number[] // Raw embedding (PII - must be encrypted)
+  encryptedEmbedding?: string // Encrypted version for storage
   confidence: number
+  processedAt: Date // Timestamp for audit trail
+  accessCount: number // Track access for monitoring
 }
 
 // Utility types for face embeddings and similarity
@@ -51,12 +94,15 @@ export interface VideoMatch {
 export interface SearchSession {
   id: string
   userImagePath: string
-  userFaceEmbedding: number[]
+  userFaceEmbedding: number[] // Encrypted face embedding (PII)
+  encryptedEmbedding?: string // Encrypted version for storage
   status: "processing" | "completed" | "error"
   results: VideoMatch[]
   threshold: number
   createdAt: Date
   expiresAt: Date
+  deleteAfter: Date // GDPR compliance - automatic deletion timestamp
+  accessLog: AccessLogEntry[] // Audit trail for biometric data access
 }
 
 // API Request/Response types
@@ -102,7 +148,7 @@ export interface FetchVideosResponse {
   errors: string[]
 }
 
-// Error handling types
+// Error handling types with security-focused error codes
 export type ErrorCode =
   | "INVALID_FILE_TYPE"
   | "FILE_TOO_LARGE"
@@ -118,6 +164,17 @@ export type ErrorCode =
   | "SIMILARITY_CALCULATION_FAILED"
   | "INTERNAL_SERVER_ERROR"
   | "VALIDATION_ERROR"
+  // Security-specific error codes
+  | "MALICIOUS_FILE_DETECTED"
+  | "RATE_LIMIT_EXCEEDED"
+  | "UNAUTHORIZED_ACCESS"
+  | "ENCRYPTION_FAILED"
+  | "DECRYPTION_FAILED"
+  | "AUDIT_LOG_FAILED"
+  | "GDPR_VIOLATION"
+  | "BIOMETRIC_DATA_BREACH"
+  | "SUSPICIOUS_ACTIVITY"
+  | "SECURITY_SCAN_FAILED"
 
 export interface ErrorDetails {
   field?: string
@@ -309,6 +366,114 @@ export class ValidationSchemas {
       errors,
     }
   }
+
+  // Security validation methods following security-expert.md guidelines
+  static validateImageSecurity(buffer: Buffer): ValidationResult {
+    const errors: ValidationError[] = []
+
+    // Check for malicious file signatures
+    if (buffer.length < 4) {
+      errors.push({
+        field: "file.content",
+        message: "File too small to be a valid image",
+        code: "MALICIOUS_FILE_DETECTED",
+        value: buffer.length,
+      })
+      return { isValid: false, errors }
+    }
+
+    // Validate magic numbers for security
+    const isValidJPEG = buffer[0] === 0xff && buffer[1] === 0xd8
+    const isValidPNG =
+      buffer[0] === 0x89 &&
+      buffer[1] === 0x50 &&
+      buffer[2] === 0x4e &&
+      buffer[3] === 0x47
+    const isValidWebP =
+      buffer.toString("ascii", 0, 4) === "RIFF" && buffer.length >= 12
+
+    if (!isValidJPEG && !isValidPNG && !isValidWebP) {
+      errors.push({
+        field: "file.content",
+        message: "Invalid or potentially malicious file format",
+        code: "MALICIOUS_FILE_DETECTED",
+      })
+    }
+
+    // Check for embedded scripts or suspicious content
+    const fileContent = buffer.toString(
+      "ascii",
+      0,
+      Math.min(1024, buffer.length)
+    )
+    const suspiciousPatterns = [
+      /<script/i,
+      /javascript:/i,
+      /vbscript:/i,
+      /onload=/i,
+      /onerror=/i,
+      /eval\(/i,
+    ]
+
+    for (const pattern of suspiciousPatterns) {
+      if (pattern.test(fileContent)) {
+        errors.push({
+          field: "file.content",
+          message: "File contains potentially malicious content",
+          code: "MALICIOUS_FILE_DETECTED",
+        })
+        break
+      }
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+    }
+  }
+
+  static validateEncryptionMetadata(
+    metadata: EncryptionMetadata
+  ): ValidationResult {
+    const errors: ValidationError[] = []
+
+    if (!metadata.algorithm || typeof metadata.algorithm !== "string") {
+      errors.push({
+        field: "encryption.algorithm",
+        message: "Encryption algorithm is required",
+        code: "ENCRYPTION_FAILED",
+      })
+    }
+
+    if (!metadata.keyId || typeof metadata.keyId !== "string") {
+      errors.push({
+        field: "encryption.keyId",
+        message: "Encryption key ID is required",
+        code: "ENCRYPTION_FAILED",
+      })
+    }
+
+    if (!metadata.iv || typeof metadata.iv !== "string") {
+      errors.push({
+        field: "encryption.iv",
+        message: "Initialization vector is required",
+        code: "ENCRYPTION_FAILED",
+      })
+    }
+
+    if (metadata.expiresAt <= new Date()) {
+      errors.push({
+        field: "encryption.expiresAt",
+        message: "Encryption has expired",
+        code: "ENCRYPTION_FAILED",
+      })
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+    }
+  }
 }
 
 // Validation utilities are now handled by Zod schemas in contracts/api.ts
@@ -368,6 +533,53 @@ export const TypeGuards = {
       obj.error &&
       typeof obj.error.code === "string" &&
       typeof obj.error.message === "string"
+    )
+  },
+
+  // Security-focused type guards
+  isAccessLogEntry(obj: any): obj is AccessLogEntry {
+    return (
+      obj &&
+      typeof obj === "object" &&
+      obj.timestamp instanceof Date &&
+      ["create", "read", "update", "delete", "encrypt", "decrypt"].includes(
+        obj.operation
+      ) &&
+      typeof obj.sessionId === "string" &&
+      ["face_embedding", "image_data", "search_results"].includes(
+        obj.dataType
+      ) &&
+      typeof obj.success === "boolean"
+    )
+  },
+
+  isSecurityEvent(obj: any): obj is SecurityEvent {
+    return (
+      obj &&
+      typeof obj === "object" &&
+      obj.timestamp instanceof Date &&
+      [
+        "failed_auth",
+        "suspicious_request",
+        "rate_limit_exceeded",
+        "malicious_file",
+        "invalid_input",
+      ].includes(obj.eventType) &&
+      ["low", "medium", "high", "critical"].includes(obj.severity) &&
+      typeof obj.details === "object" &&
+      typeof obj.resolved === "boolean"
+    )
+  },
+
+  isEncryptionMetadata(obj: any): obj is EncryptionMetadata {
+    return (
+      obj &&
+      typeof obj === "object" &&
+      typeof obj.algorithm === "string" &&
+      typeof obj.keyId === "string" &&
+      typeof obj.iv === "string" &&
+      obj.encryptedAt instanceof Date &&
+      obj.expiresAt instanceof Date
     )
   },
 }

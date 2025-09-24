@@ -1,4 +1,4 @@
-import { SearchSession, ErrorCode } from "../types/index.js"
+import { SearchSession, ErrorCode, AccessLogEntry } from "../types/index.js"
 import { join } from "path"
 import { promises as fs } from "fs"
 
@@ -53,9 +53,14 @@ export class SessionService {
         threshold,
         createdAt: now,
         expiresAt,
+        deleteAfter: new Date(now.getTime() + 24 * 60 * 60 * 1000), // GDPR: Delete after 24 hours
+        accessLog: [], // Initialize empty access log for audit trail
       }
 
       this.sessions.set(sessionId, session)
+
+      // Log session creation for audit trail
+      this.logAccess(sessionId, "create", "face_embedding", true)
 
       console.log(`Created session ${sessionId}, expires at ${expiresAt}`)
 
@@ -80,11 +85,21 @@ export class SessionService {
   /**
    * Get session by ID
    */
-  public getSession(sessionId: string): SessionResult<SearchSession> {
+  public getSession(
+    sessionId: string,
+    ipAddress?: string,
+    userAgent?: string
+  ): SessionResult<SearchSession> {
     try {
       const session = this.sessions.get(sessionId)
 
       if (!session) {
+        // Log failed access attempt for security monitoring
+        console.warn(
+          `Failed session access attempt: ${sessionId} from ${
+            ipAddress || "unknown IP"
+          }`
+        )
         return {
           success: false,
           error: {
@@ -107,6 +122,17 @@ export class SessionService {
           },
         }
       }
+
+      // Log successful access to session data
+      this.logAccess(
+        sessionId,
+        "read",
+        "face_embedding",
+        true,
+        undefined,
+        ipAddress,
+        userAgent
+      )
 
       return {
         success: true,
@@ -217,6 +243,9 @@ export class SessionService {
       const session = sessionResult.data
       session.results = results
 
+      // Log access to search results for audit trail
+      this.logAccess(sessionId, "update", "search_results", true)
+
       this.sessions.set(sessionId, session)
 
       return {
@@ -234,6 +263,50 @@ export class SessionService {
           }`,
         },
       }
+    }
+  }
+
+  /**
+   * Log access to biometric data for GDPR compliance and security monitoring
+   */
+  public logAccess(
+    sessionId: string,
+    operation: AccessLogEntry["operation"],
+    dataType: AccessLogEntry["dataType"],
+    success: boolean,
+    errorCode?: string,
+    ipAddress?: string,
+    userAgent?: string
+  ): void {
+    try {
+      const session = this.sessions.get(sessionId)
+      if (!session) {
+        console.warn(`Cannot log access for non-existent session: ${sessionId}`)
+        return
+      }
+
+      const logEntry: AccessLogEntry = {
+        timestamp: new Date(),
+        operation,
+        sessionId,
+        dataType,
+        success,
+        ...(errorCode && { errorCode }),
+        ...(ipAddress && { ipAddress }),
+        ...(userAgent && { userAgent }),
+      }
+
+      session.accessLog.push(logEntry)
+      this.sessions.set(sessionId, session)
+
+      // Log security events for monitoring
+      console.log(
+        `Access logged: ${operation} ${dataType} for session ${sessionId} - ${
+          success ? "SUCCESS" : "FAILED"
+        }`
+      )
+    } catch (error) {
+      console.error("Failed to log access:", error)
     }
   }
 
@@ -260,6 +333,9 @@ export class SessionService {
       const session = sessionResult.data
       await fs.writeFile(session.userImagePath, imageBuffer)
 
+      // Log storage of image data for audit trail
+      this.logAccess(sessionId, "create", "image_data", true)
+
       console.log(
         `Stored image for session ${sessionId} at ${session.userImagePath}`
       )
@@ -285,14 +361,40 @@ export class SessionService {
   /**
    * Delete session and cleanup files
    */
-  public async deleteSession(sessionId: string): Promise<SessionResult<void>> {
+  public async deleteSession(
+    sessionId: string,
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<SessionResult<void>> {
     try {
       const session = this.sessions.get(sessionId)
 
       if (session) {
+        // Log deletion of biometric data for GDPR compliance
+        this.logAccess(
+          sessionId,
+          "delete",
+          "face_embedding",
+          true,
+          undefined,
+          ipAddress,
+          userAgent
+        )
+        this.logAccess(
+          sessionId,
+          "delete",
+          "image_data",
+          true,
+          undefined,
+          ipAddress,
+          userAgent
+        )
+
         this.sessions.delete(sessionId)
         await this.cleanupSessionFiles(sessionId)
-        console.log(`Deleted session ${sessionId}`)
+        console.log(
+          `Deleted session ${sessionId} - GDPR compliance cleanup completed`
+        )
       }
 
       return {
