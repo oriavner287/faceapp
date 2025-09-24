@@ -17,10 +17,13 @@ export function getApiConfig(): ApiConfig {
   const isProduction = process.env.NODE_ENV === "production"
   const isDevelopment = !isProduction
 
-  // Use Railway service URL for production environments
-  const baseUrl = isProduction
-    ? "https://faceapp-lhtz.onrender.com/api"
-    : process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api"
+  // Use BACKEND_URL environment variable for all environments
+  // Note: NEXT_PUBLIC_BACKEND_URL is used for client-side access
+  const backendUrl =
+    process.env.NEXT_PUBLIC_BACKEND_URL ||
+    process.env.BACKEND_URL ||
+    "http://localhost:3001"
+  const baseUrl = `${backendUrl}/api`
 
   return {
     baseUrl,
@@ -43,9 +46,8 @@ export const API_ENDPOINTS = {
   FETCH_VIDEOS: "/fetch-videos",
 } as const
 
-// Railway service configuration
-export const RAILWAY_CONFIG = {
-  PRODUCTION_URL: "https://faceapp-lhtz.onrender.com",
+// Backend service configuration
+export const BACKEND_CONFIG = {
   API_PATH: "/api",
   HEALTH_CHECK: "/health",
 } as const
@@ -90,7 +92,10 @@ export function verifyUrlConstruction(): void {
     buildApiUrl(API_ENDPOINTS.UPLOAD_IMAGE)
   )
   console.log("Health URL:", buildHealthUrl())
-  console.log("Expected Health URL: https://faceapp-lhtz.onrender.com/health")
+  console.log(
+    "Backend URL from env:",
+    process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL
+  )
 
   // Verify the health URL is NOT using /api
   const healthUrl = buildHealthUrl()
@@ -165,14 +170,23 @@ export async function checkApiHealth(): Promise<boolean> {
 
 /**
  * Environment-specific configuration
+ * All URLs now derived from environment variables
  */
 export const ENV_CONFIG = {
   development: {
-    apiUrl: "http://localhost:3001/api",
+    apiUrl: `${
+      process.env.NEXT_PUBLIC_BACKEND_URL ||
+      process.env.BACKEND_URL ||
+      "http://localhost:3001"
+    }/api`,
     frontendUrl: "http://localhost:3000",
   },
   production: {
-    apiUrl: "https://faceapp-lhtz.onrender.com/api",
+    apiUrl: `${
+      process.env.NEXT_PUBLIC_BACKEND_URL ||
+      process.env.BACKEND_URL ||
+      "http://localhost:3001"
+    }/api`,
     frontendUrl:
       process.env.NEXT_PUBLIC_FRONTEND_URL ||
       "https://your-frontend-domain.com",

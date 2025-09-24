@@ -155,7 +155,22 @@
   - _Requirements: 4.3, 4.4, 4.5, 8.1, 8.2, 8.6_
   - _Steering: Follow backend-expert.md for service patterns, security-expert.md for biometric data security, tech.md for TypeScript_
 
-- [ ] 10. Create server actions for video search and operations with security validation
+- [x] 9.5. Fix Content Security Policy for production deployment
+
+  - **URGENT**: Update CSP configuration to allow connections to production backend URL (`https://faceapp-lhtz.onrender.com`)
+  - **Security**: Configure environment-specific CSP directives that allow localhost in development and production URLs in production
+  - Locate and update CSP configuration in Next.js config (`next.config.js`) or security middleware
+  - **Security**: Ensure CSP `connect-src` directive includes both development (`http://localhost:3001`) and production backend URLs
+  - Add environment variable support for dynamic backend URL configuration (e.g., `NEXT_PUBLIC_BACKEND_URL`)
+  - **Security**: Validate that CSP changes don't introduce security vulnerabilities by allowing overly broad domains
+  - Test CSP configuration in both development and production environments
+  - **Security**: Verify that health check endpoints and API calls work correctly with updated CSP
+  - Update any hardcoded localhost references to use environment variables for backend URL
+  - **Security**: Ensure no sensitive backend URLs are exposed in client-side code
+  - _Requirements: 7.4 (production deployment), 8.6 (security configuration)_
+  - _Steering: Follow security-expert.md for CSP configuration, tech.md for environment variables, Next.js security headers_
+
+- [-] 10. Create server actions for video search and operations with security validation
 
   - Create server action for video search with parallel processing of websites following Next.js 15 App Router patterns
   - **Security**: Implement URL validation and sanitization for external video sources following security-expert.md guidelines
