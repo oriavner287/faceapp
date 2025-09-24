@@ -5,13 +5,19 @@ import {
 } from "../contracts/api.js"
 import { videoFetchingService } from "../services/videoFetchingService.js"
 import { thumbnailProcessingService } from "../services/thumbnailProcessingService.js"
-// Types are imported where needed
+import { auditLogger } from "../utils/auditLogger.js"
 
 // Video fetching router
 export const videoRouter = os.router({
   fetchFromSites: os
     .input(FetchVideosInputSchema)
-    .handler(async ({ input }): Promise<FetchVideosOutput> => {
+    .handler(async ({ input, context }): Promise<FetchVideosOutput> => {
+      // Security: Extract IP address for audit logging
+      // Note: In oRPC, context doesn't have req property, so we use fallback values
+      const ipAddress = "unknown" // Would need to be passed from middleware
+      const userAgent = "unknown" // Would need to be passed from middleware
+      const sessionId = "video-search-" + Date.now() // Generate session ID for tracking
+
       try {
         console.log(
           "Fetching videos with embedding length:",
@@ -19,11 +25,25 @@ export const videoRouter = os.router({
         )
         console.log("Using threshold:", input.threshold || 0.7)
 
-        // Step 1: Fetch videos from all configured websites
-        const fetchResult = await videoFetchingService.fetchVideosFromAllSites({
-          useHeadless: true,
-          timeout: 10000,
+        // Security: Log video search operation
+        auditLogger.logAccess({
+          operation: "read",
+          sessionId,
+          dataType: "search_results",
+          success: false, // Will update on success
+          ipAddress: ipAddress || undefined,
+          userAgent: userAgent || undefined,
         })
+
+        // Step 1: Fetch videos from all configured websites with security context
+        const fetchResult = await videoFetchingService.fetchVideosFromAllSites(
+          {
+            useHeadless: true,
+            timeout: 10000,
+          },
+          sessionId,
+          ipAddress
+        )
 
         console.log(
           `Fetched ${fetchResult.results.length} videos from ${fetchResult.processedSites.length} sites`
@@ -77,6 +97,16 @@ export const videoRouter = os.router({
 
         // Results are already sorted by the thumbnail processing service
         console.log(`Found ${videoMatches.length} matching videos`)
+
+        // Security: Log successful video search completion
+        auditLogger.logAccess({
+          operation: "read",
+          sessionId,
+          dataType: "search_results",
+          success: true,
+          ipAddress: ipAddress || undefined,
+          userAgent: userAgent || undefined,
+        })
 
         return {
           results: videoMatches,

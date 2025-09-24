@@ -2,6 +2,9 @@ import * as faceapi from "face-api.js"
 import { join } from "path"
 import sharp from "sharp"
 import type { FaceDetection, ErrorCode } from "../types/index.js"
+import { encryptFaceEmbedding } from "../utils/encryption.js"
+import { auditLogger } from "../utils/auditLogger.js"
+import { faceDetectionRateLimit } from "../middleware/rateLimiter.js"
 
 // Dynamic import for canvas to handle optional dependency
 let Canvas: any, Image: any, ImageData: any
@@ -63,7 +66,7 @@ export class FaceDetectionService {
   }
 
   /**
-   * Initialize face-api.js with pre-trained models
+   * Initialize face-api.js with pre-trained models and security validation
    */
   public async initialize(): Promise<void> {
     if (this.isInitialized) {
@@ -75,6 +78,14 @@ export class FaceDetectionService {
       await initializeCanvas()
 
       console.log("Loading face-api.js models from:", this.modelsPath)
+
+      // Security: Validate model integrity before loading
+      const modelIntegrityValid = await this.validateModelIntegrity()
+      if (!modelIntegrityValid) {
+        throw new Error(
+          "Model integrity validation failed - potential model poisoning detected"
+        )
+      }
 
       // Load the required models for face detection and recognition
       await Promise.all([
@@ -92,9 +103,64 @@ export class FaceDetectionService {
   }
 
   /**
-   * Detect faces in an image buffer
+   * Detect faces in an image buffer with security validation and rate limiting
    */
-  public async detectFaces(imageBuffer: Buffer): Promise<FaceDetectionResult> {
+  public async detectFaces(
+    imageBuffer: Buffer,
+    sessionId?: string,
+    ipAddress?: string
+  ): Promise<FaceDetectionResult> {
+    // Security: Rate limiting check
+    const rateLimitKey = ipAddress || "default"
+    const rateLimitResult = faceDetectionRateLimit.checkLimit(
+      rateLimitKey,
+      sessionId,
+      ipAddress
+    )
+
+    if (!rateLimitResult.allowed) {
+      auditLogger.logAccess({
+        operation: "read",
+        sessionId: sessionId || "unknown",
+        dataType: "face_embedding",
+        success: false,
+        errorCode: "RATE_LIMIT_EXCEEDED",
+        ipAddress: ipAddress || undefined,
+      })
+
+      return {
+        success: false,
+        faces: [],
+        error: {
+          code: "RATE_LIMIT_EXCEEDED",
+          message: "Too many face detection requests. Please try again later.",
+        },
+      }
+    }
+
+    // Security: Input validation to prevent adversarial attacks
+    const validationResult = this.validateImageInput(imageBuffer)
+    if (!validationResult.isValid) {
+      auditLogger.logSecurityEvent({
+        eventType: "invalid_input",
+        severity: "medium",
+        sessionId: sessionId || undefined,
+        ipAddress: ipAddress || undefined,
+        details: {
+          error: validationResult.error,
+          imageSize: imageBuffer.length,
+        },
+      })
+
+      return {
+        success: false,
+        faces: [],
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid image input detected",
+        },
+      }
+    }
     try {
       if (!this.isInitialized) {
         await this.initialize()
@@ -123,19 +189,45 @@ export class FaceDetectionService {
         }
       }
 
-      // Convert detections to our FaceDetection format
-      const faces: FaceDetection[] = detections.map(detection => ({
-        boundingBox: {
-          x: Math.round(detection.detection.box.x),
-          y: Math.round(detection.detection.box.y),
-          width: Math.round(detection.detection.box.width),
-          height: Math.round(detection.detection.box.height),
-        },
-        embedding: Array.from(detection.descriptor),
-        confidence: detection.detection.score,
-        processedAt: new Date(), // Add timestamp for audit trail
-        accessCount: 0, // Initialize access count for monitoring
-      }))
+      // Convert detections to our FaceDetection format with encryption
+      const faces: FaceDetection[] = detections.map(detection => {
+        const rawEmbedding = Array.from(detection.descriptor)
+
+        // Security: Encrypt face embeddings immediately after generation
+        const encryptionResult = encryptFaceEmbedding(rawEmbedding)
+
+        // Security: Log biometric data processing for GDPR compliance
+        auditLogger.logAccess({
+          operation: "encrypt",
+          sessionId: sessionId || "unknown",
+          dataType: "face_embedding",
+          success: true,
+          ipAddress: ipAddress || undefined,
+        })
+
+        return {
+          boundingBox: {
+            x: Math.round(detection.detection.box.x),
+            y: Math.round(detection.detection.box.y),
+            width: Math.round(detection.detection.box.width),
+            height: Math.round(detection.detection.box.height),
+          },
+          embedding: rawEmbedding, // Keep for immediate use, will be cleared
+          encryptedEmbedding: encryptionResult.encryptedData,
+          confidence: detection.detection.score,
+          processedAt: new Date(),
+          accessCount: 0,
+        }
+      })
+
+      // Security: Log successful face detection
+      auditLogger.logAccess({
+        operation: "create",
+        sessionId: sessionId || "unknown",
+        dataType: "face_embedding",
+        success: true,
+        ipAddress: ipAddress || undefined,
+      })
 
       return {
         success: true,
@@ -350,6 +442,163 @@ export class FaceDetectionService {
     } catch (error) {
       console.error("Model validation error:", error)
       return false
+    }
+  }
+
+  /**
+   * Security: Validate model integrity to prevent model poisoning
+   */
+  private async validateModelIntegrity(): Promise<boolean> {
+    try {
+      const fs = await import("fs")
+      const path = await import("path")
+
+      const requiredModels = [
+        "ssd_mobilenetv1_model-weights_manifest.json",
+        "face_landmark_68_model-weights_manifest.json",
+        "face_recognition_model-weights_manifest.json",
+      ]
+
+      for (const model of requiredModels) {
+        const modelPath = path.join(this.modelsPath, model)
+
+        if (!fs.existsSync(modelPath)) {
+          console.error(`Model file missing: ${modelPath}`)
+          return false
+        }
+
+        // Check file size is reasonable (not too small or suspiciously large)
+        const stats = await fs.promises.stat(modelPath)
+        if (stats.size < 100 || stats.size > 50 * 1024 * 1024) {
+          // 100 bytes to 50MB
+          console.error(
+            `Model file size suspicious: ${modelPath} (${stats.size} bytes)`
+          )
+          return false
+        }
+
+        // Validate JSON structure for manifest files
+        if (model.endsWith(".json")) {
+          const content = await fs.promises.readFile(modelPath, "utf8")
+          try {
+            const parsed = JSON.parse(content)
+            if (
+              !parsed.weightsManifest ||
+              !Array.isArray(parsed.weightsManifest)
+            ) {
+              console.error(`Invalid model manifest structure: ${modelPath}`)
+              return false
+            }
+          } catch (parseError) {
+            console.error(`Model manifest JSON parse error: ${modelPath}`)
+            return false
+          }
+        }
+      }
+
+      return true
+    } catch (error) {
+      console.error("Model integrity validation error:", error)
+      return false
+    }
+  }
+
+  /**
+   * Security: Validate image input to prevent adversarial attacks
+   */
+  private validateImageInput(imageBuffer: Buffer): {
+    isValid: boolean
+    error?: string
+  } {
+    try {
+      // Check buffer is not empty
+      if (!imageBuffer || imageBuffer.length === 0) {
+        return { isValid: false, error: "Empty image buffer" }
+      }
+
+      // Check reasonable size limits (prevent DoS)
+      if (imageBuffer.length > 50 * 1024 * 1024) {
+        // 50MB max
+        return { isValid: false, error: "Image too large" }
+      }
+
+      if (imageBuffer.length < 100) {
+        // Minimum viable image size
+        return { isValid: false, error: "Image too small" }
+      }
+
+      // Validate magic numbers for supported formats
+      const isValidFormat = this.validateImageMagicNumbers(imageBuffer)
+      if (!isValidFormat) {
+        return { isValid: false, error: "Invalid image format" }
+      }
+
+      // Check for potential polyglot files (files that are valid in multiple formats)
+      if (this.detectPolyglotFile(imageBuffer)) {
+        return { isValid: false, error: "Polyglot file detected" }
+      }
+
+      return { isValid: true }
+    } catch (error) {
+      return { isValid: false, error: "Image validation failed" }
+    }
+  }
+
+  /**
+   * Security: Validate image magic numbers
+   */
+  private validateImageMagicNumbers(buffer: Buffer): boolean {
+    if (buffer.length < 12) return false
+
+    // JPEG magic numbers
+    if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+      return true
+    }
+
+    // PNG magic numbers
+    if (
+      buffer[0] === 0x89 &&
+      buffer[1] === 0x50 &&
+      buffer[2] === 0x4e &&
+      buffer[3] === 0x47
+    ) {
+      return true
+    }
+
+    // WebP magic numbers
+    if (
+      buffer.toString("ascii", 0, 4) === "RIFF" &&
+      buffer.toString("ascii", 8, 12) === "WEBP"
+    ) {
+      return true
+    }
+
+    return false
+  }
+
+  /**
+   * Security: Detect polyglot files that could be malicious
+   */
+  private detectPolyglotFile(buffer: Buffer): boolean {
+    try {
+      // Check for suspicious patterns that might indicate polyglot files
+      const content = buffer.toString("ascii", 0, Math.min(1024, buffer.length))
+
+      // Look for script tags, executable headers, or other suspicious content
+      const suspiciousPatterns = [
+        /<script/i,
+        /javascript:/i,
+        /vbscript:/i,
+        /onload=/i,
+        /onerror=/i,
+        /MZ/, // PE executable header
+        /\x7fELF/, // ELF executable header
+      ]
+
+      return suspiciousPatterns.some(pattern => pattern.test(content))
+    } catch (error) {
+      // If we can't analyze, assume it might be suspicious
+      return true
     }
   }
 }

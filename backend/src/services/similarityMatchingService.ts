@@ -7,6 +7,8 @@ import type {
   ErrorCode,
 } from "../types/index.js"
 import { SIMILARITY_CONSTRAINTS } from "../types/index.js"
+import { auditLogger } from "../utils/auditLogger.js"
+import { similarityCalculationRateLimit } from "../middleware/rateLimiter.js"
 
 export interface SimilarityResult {
   score: SimilarityScore
@@ -46,19 +48,60 @@ export class SimilarityMatchingService {
   }
 
   /**
-   * Calculate cosine similarity between two face embeddings
+   * Calculate cosine similarity between two face embeddings with security validation
    * Returns a score between 0 and 1, where 1 is identical
    */
   public calculateCosineSimilarity(
     embedding1: FaceEmbedding,
-    embedding2: FaceEmbedding
+    embedding2: FaceEmbedding,
+    sessionId?: string,
+    ipAddress?: string
   ): SimilarityCalculationResult {
+    // Security: Rate limiting for similarity calculations
+    const rateLimitKey = sessionId || ipAddress || "default"
+    const rateLimitResult = similarityCalculationRateLimit.checkLimit(
+      rateLimitKey,
+      sessionId,
+      ipAddress
+    )
+
+    if (!rateLimitResult.allowed) {
+      auditLogger.logSecurityEvent({
+        eventType: "rate_limit_exceeded",
+        severity: "medium",
+        sessionId: sessionId || undefined,
+        ipAddress: ipAddress || undefined,
+        details: {
+          operation: "similarity_calculation",
+          limit: "computational_abuse_prevention",
+        },
+      })
+
+      return {
+        success: false,
+        error: {
+          code: "RATE_LIMIT_EXCEEDED",
+          message: "Too many similarity calculations. Please try again later.",
+        },
+      }
+    }
     try {
-      // Validate inputs
-      if (
-        !this.isValidEmbedding(embedding1) ||
-        !this.isValidEmbedding(embedding2)
-      ) {
+      // Security: Validate embeddings to prevent manipulation and ensure data integrity
+      const validation1 = this.validateEmbeddingIntegrity(embedding1)
+      const validation2 = this.validateEmbeddingIntegrity(embedding2)
+
+      if (!validation1.isValid || !validation2.isValid) {
+        auditLogger.logSecurityEvent({
+          eventType: "invalid_input",
+          severity: "high",
+          sessionId: sessionId || undefined,
+          ipAddress: ipAddress || undefined,
+          details: {
+            operation: "similarity_calculation",
+            error: validation1.error || validation2.error,
+          },
+        })
+
         return {
           success: false,
           error: {
@@ -110,9 +153,21 @@ export class SimilarityMatchingService {
       // Ensure score is between 0 and 1
       const normalizedScore = Math.max(0, Math.min(1, similarity))
 
+      // Security: Sanitize similarity score (round to 2 decimal places)
+      const sanitizedScore = Math.round(normalizedScore * 100) / 100
+
+      // Security: Log similarity calculation for audit purposes
+      auditLogger.logAccess({
+        operation: "read",
+        sessionId: sessionId || "unknown",
+        dataType: "face_embedding",
+        success: true,
+        ipAddress: ipAddress || undefined,
+      })
+
       return {
         success: true,
-        score: normalizedScore,
+        score: sanitizedScore,
       }
     } catch (error) {
       return {
@@ -383,6 +438,58 @@ export class SimilarityMatchingService {
       // Note: In production, we typically expect 128 or 512 dimensions
       // but for testing we allow any positive length
     )
+  }
+
+  /**
+   * Security: Validate embedding integrity to prevent manipulation
+   */
+  private validateEmbeddingIntegrity(embedding: any): {
+    isValid: boolean
+    error?: string
+  } {
+    try {
+      // Basic type and format validation
+      if (!this.isValidEmbedding(embedding)) {
+        return { isValid: false, error: "Invalid embedding format" }
+      }
+
+      // Check for reasonable dimensions (face embeddings are typically 128 or 512 dimensions)
+      if (embedding.length < 64 || embedding.length > 1024) {
+        return {
+          isValid: false,
+          error: "Embedding dimensions out of expected range",
+        }
+      }
+
+      // Check for suspicious patterns that might indicate manipulation
+      const values = embedding as number[]
+
+      // Check for all zeros (suspicious)
+      if (values.every(val => val === 0)) {
+        return { isValid: false, error: "All-zero embedding detected" }
+      }
+
+      // Check for all same values (suspicious)
+      if (values.every(val => val === values[0])) {
+        return { isValid: false, error: "Uniform embedding values detected" }
+      }
+
+      // Check for extreme values that might indicate manipulation
+      const hasExtremeValues = values.some(val => Math.abs(val) > 100)
+      if (hasExtremeValues) {
+        return { isValid: false, error: "Extreme embedding values detected" }
+      }
+
+      // Check for NaN or infinite values
+      const hasInvalidNumbers = values.some(val => !Number.isFinite(val))
+      if (hasInvalidNumbers) {
+        return { isValid: false, error: "Invalid numeric values in embedding" }
+      }
+
+      return { isValid: true }
+    } catch (error) {
+      return { isValid: false, error: "Embedding validation failed" }
+    }
   }
 
   /**

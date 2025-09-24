@@ -11,10 +11,7 @@ import {
   SIMILARITY_CONSTRAINTS,
   FILE_CONSTRAINTS,
 } from "../types/index.js"
-import {
-  validateImageMagicNumbers,
-  SecurityErrors,
-} from "../middleware/security.js"
+import { auditLogger } from "../utils/auditLogger.js"
 
 // Additional input schemas for enhanced face router
 const GetSessionInputSchema = z.object({
@@ -37,16 +34,61 @@ const DeleteSessionInputSchema = z.object({
 
 // Image format validation is now handled by validateImageMagicNumbers from security middleware
 
+// Security validation helper methods
+function validateImageMagicNumbers(buffer: Buffer): boolean {
+  if (buffer.length < 12) return false
+
+  // JPEG magic numbers
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return true
+  }
+
+  // PNG magic numbers
+  if (
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47
+  ) {
+    return true
+  }
+
+  // WebP magic numbers
+  if (
+    buffer.toString("ascii", 0, 4) === "RIFF" &&
+    buffer.toString("ascii", 8, 12) === "WEBP"
+  ) {
+    return true
+  }
+
+  return false
+}
+
 // Face processing router with enhanced functionality
 export const faceRouter = os.router({
   processImage: os
     .input(ProcessImageInputSchema)
-    .handler(async ({ input }): Promise<ProcessImageOutput> => {
+    .handler(async ({ input, context }): Promise<ProcessImageOutput> => {
       const startTime = Date.now()
       let sessionId: string | null = null
 
+      // Security: Extract IP address and user agent for audit logging
+      // Note: In oRPC, context doesn't have req property, so we use fallback values
+      const ipAddress = "unknown" // Would need to be passed from middleware
+      const userAgent = "unknown" // Would need to be passed from middleware
+
       try {
         console.log("Processing image of size:", input.imageData.length)
+
+        // Security: Log biometric data processing attempt
+        auditLogger.logAccess({
+          operation: "create",
+          sessionId: "pending",
+          dataType: "image_data",
+          success: false, // Will update to true on success
+          ipAddress: ipAddress || undefined,
+          userAgent: userAgent || undefined,
+        })
 
         // Enhanced input validation
         if (!input.imageData || input.imageData.length === 0) {
@@ -74,11 +116,27 @@ export const faceRouter = os.router({
           console.error(
             "Invalid image format detected - magic number validation failed"
           )
+
+          auditLogger.logSecurityEvent({
+            eventType: "malicious_file",
+            severity: "high",
+            ipAddress: ipAddress || undefined,
+            userAgent: userAgent || undefined,
+            details: {
+              operation: "image_upload",
+              error: "invalid_magic_numbers",
+              fileSize: input.imageData.length,
+            },
+          })
+
           return {
             success: false,
             faceDetected: false,
             searchId: "",
-            error: SecurityErrors.INVALID_FILE_TYPE,
+            error: {
+              code: "INVALID_FILE_TYPE",
+              message: "Invalid image format",
+            },
           }
         }
 

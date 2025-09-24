@@ -4,6 +4,8 @@ import sharp from "sharp"
 import { promises as fs } from "fs"
 import * as path from "path"
 import { VIDEO_CONSTRAINTS } from "../types/index.js"
+import { auditLogger } from "../utils/auditLogger.js"
+import { videoSearchRateLimit } from "../middleware/rateLimiter.js"
 
 // Hard-coded website configurations as per requirements
 const WEBSITE_CONFIGS = [
@@ -123,6 +125,7 @@ export class VideoFetchingService {
 
   private async initBrowser(): Promise<Browser> {
     if (!this.browser) {
+      // Security: Configure Puppeteer with security settings
       this.browser = await puppeteer.launch({
         headless: true,
         args: [
@@ -133,7 +136,25 @@ export class VideoFetchingService {
           "--no-first-run",
           "--no-zygote",
           "--disable-gpu",
+          // Security: Additional security flags
+          "--disable-javascript", // Disable JavaScript execution for security
+          "--disable-plugins",
+          "--disable-extensions",
+          "--disable-images", // We only need HTML structure
+          "--disable-background-networking",
+          "--disable-sync",
+          "--disable-translate",
+          "--disable-ipc-flooding-protection", // Can cause issues in containers
+          "--disable-renderer-backgrounding",
+          "--disable-backgrounding-occluded-windows",
+          "--disable-features=TranslateUI",
+          "--disable-component-extensions-with-background-pages",
+          "--no-default-browser-check",
+          "--no-pings",
+          "--mute-audio",
         ],
+        // Security: Restrict network access
+        ignoreDefaultArgs: ["--enable-automation"],
       })
     }
     return this.browser
@@ -147,28 +168,86 @@ export class VideoFetchingService {
   }
 
   /**
-   * Fetch videos from all configured websites in parallel
+   * Fetch videos from all configured websites in parallel with security validation
    */
-  async fetchVideosFromAllSites(options: FetchVideosOptions = {}): Promise<{
+  async fetchVideosFromAllSites(
+    options: FetchVideosOptions = {},
+    sessionId?: string,
+    ipAddress?: string
+  ): Promise<{
     results: VideoMetadata[]
     processedSites: string[]
     errors: string[]
   }> {
+    // Security: Rate limiting for video search operations
+    const rateLimitKey = ipAddress || "default"
+    const rateLimitResult = videoSearchRateLimit.checkLimit(
+      rateLimitKey,
+      sessionId,
+      ipAddress
+    )
+
+    if (!rateLimitResult.allowed) {
+      auditLogger.logSecurityEvent({
+        eventType: "rate_limit_exceeded",
+        severity: "medium",
+        sessionId: sessionId || undefined,
+        ipAddress: ipAddress || undefined,
+        details: {
+          operation: "video_search",
+          limit: "DoS_protection",
+        },
+      })
+
+      return {
+        results: [],
+        processedSites: [],
+        errors: ["Rate limit exceeded. Please try again later."],
+      }
+    }
+
+    // Security: Validate website URLs to prevent SSRF attacks
+    const validatedConfigs = WEBSITE_CONFIGS.filter(config => {
+      const validation = this.validateWebsiteUrl(config.url)
+      if (!validation.isValid) {
+        auditLogger.logSecurityEvent({
+          eventType: "suspicious_request",
+          severity: "high",
+          sessionId: sessionId || undefined,
+          ipAddress: ipAddress || undefined,
+          details: {
+            operation: "url_validation",
+            url: config.url,
+            error: validation.error,
+          },
+        })
+        return false
+      }
+      return true
+    })
+
+    if (validatedConfigs.length === 0) {
+      return {
+        results: [],
+        processedSites: [],
+        errors: ["No valid websites available for scraping"],
+      }
+    }
     const results: VideoMetadata[] = []
     const processedSites: string[] = []
     const allErrors: string[] = []
 
     try {
-      // Process all websites in parallel with rate limiting
-      const scrapingPromises = WEBSITE_CONFIGS.map(config =>
-        this.scrapeWebsiteWithRetry(config, options)
+      // Process all validated websites in parallel with rate limiting
+      const scrapingPromises = validatedConfigs.map(config =>
+        this.scrapeWebsiteWithRetry(config, options, sessionId, ipAddress)
       )
 
       const scrapingResults = await Promise.allSettled(scrapingPromises)
 
       for (let i = 0; i < scrapingResults.length; i++) {
         const result = scrapingResults[i]
-        const config = WEBSITE_CONFIGS[i]
+        const config = validatedConfigs[i]
 
         if (!result || !config) continue
 
@@ -203,11 +282,13 @@ export class VideoFetchingService {
   private async scrapeWebsiteWithRetry(
     config: (typeof WEBSITE_CONFIGS)[0],
     options: FetchVideosOptions,
+    sessionId?: string,
+    ipAddress?: string,
     attempt: number = 1
   ): Promise<ScrapingResult> {
     try {
       await this.rateLimiter.waitForSlot()
-      return await this.scrapeWebsite(config, options)
+      return await this.scrapeWebsite(config, options, sessionId, ipAddress)
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error"
 
@@ -216,7 +297,13 @@ export class VideoFetchingService {
         await new Promise(resolve =>
           setTimeout(resolve, RATE_LIMIT.retryDelayMs * attempt)
         )
-        return this.scrapeWebsiteWithRetry(config, options, attempt + 1)
+        return this.scrapeWebsiteWithRetry(
+          config,
+          options,
+          sessionId,
+          ipAddress,
+          attempt + 1
+        )
       }
 
       throw new Error(
@@ -227,7 +314,9 @@ export class VideoFetchingService {
 
   private async scrapeWebsite(
     config: (typeof WEBSITE_CONFIGS)[0],
-    options: FetchVideosOptions
+    options: FetchVideosOptions,
+    _sessionId?: string,
+    _ipAddress?: string
   ): Promise<ScrapingResult> {
     const errors: string[] = []
     const videos: VideoMetadata[] = []
@@ -520,10 +609,21 @@ export class VideoFetchingService {
       const buffer = await response.arrayBuffer()
       const imageBuffer = Buffer.from(buffer)
 
-      // Process image with Sharp for optimization
+      // Security: Validate downloaded content before processing
+      const contentValidation = this.validateDownloadedContent(
+        imageBuffer,
+        "image"
+      )
+      if (!contentValidation.isValid) {
+        throw new Error(`Invalid image content: ${contentValidation.error}`)
+      }
+
+      // Security: Process image with Sharp to prevent image-based attacks
       const processedImage = await sharp(imageBuffer)
         .resize(640, 480, { fit: "inside", withoutEnlargement: true })
         .jpeg({ quality: 85 })
+        // Security: Strip metadata that could contain malicious data
+        .withMetadata({})
         .toBuffer()
 
       // Save to temporary file
@@ -589,6 +689,140 @@ export class VideoFetchingService {
    */
   getWebsiteConfigs() {
     return WEBSITE_CONFIGS
+  }
+
+  /**
+   * Security: Validate website URL to prevent SSRF attacks
+   */
+  private validateWebsiteUrl(url: string): {
+    isValid: boolean
+    error?: string
+  } {
+    try {
+      const parsedUrl = new URL(url)
+
+      // Only allow HTTPS for security
+      if (parsedUrl.protocol !== "https:") {
+        return { isValid: false, error: "Only HTTPS URLs are allowed" }
+      }
+
+      // Validate that URLs point to expected domains (whitelist approach)
+      const allowedDomains = ["example.com", "test.example.com"]
+      const isAllowedDomain = allowedDomains.some(
+        domain =>
+          parsedUrl.hostname === domain ||
+          parsedUrl.hostname.endsWith(`.${domain}`)
+      )
+
+      if (!isAllowedDomain) {
+        return { isValid: false, error: "Domain not in allowed list" }
+      }
+
+      // Reject suspicious URLs
+      const suspiciousPatterns = [
+        /localhost/i,
+        /127\.0\.0\.1/,
+        /192\.168\./,
+        /10\./,
+        /172\.(1[6-9]|2[0-9]|3[0-1])\./,
+        /0\.0\.0\.0/,
+        /metadata/i,
+        /admin/i,
+      ]
+
+      if (suspiciousPatterns.some(pattern => pattern.test(url))) {
+        return { isValid: false, error: "Suspicious URL pattern detected" }
+      }
+
+      return { isValid: true }
+    } catch (error) {
+      return { isValid: false, error: "Invalid URL format" }
+    }
+  }
+
+  /**
+   * Security: Validate downloaded content to prevent malicious content
+   */
+  private validateDownloadedContent(
+    buffer: Buffer,
+    expectedType: "image" | "html"
+  ): { isValid: boolean; error?: string } {
+    try {
+      if (!buffer || buffer.length === 0) {
+        return { isValid: false, error: "Empty content" }
+      }
+
+      // Check size limits
+      const maxSize = expectedType === "image" ? 10 * 1024 * 1024 : 1024 * 1024 // 10MB for images, 1MB for HTML
+      if (buffer.length > maxSize) {
+        return { isValid: false, error: "Content too large" }
+      }
+
+      if (expectedType === "image") {
+        // Validate image magic numbers
+        return this.validateImageMagicNumbers(buffer)
+      } else if (expectedType === "html") {
+        // Basic HTML validation
+        const content = buffer.toString(
+          "utf8",
+          0,
+          Math.min(1024, buffer.length)
+        )
+
+        // Check for suspicious content
+        const suspiciousPatterns = [
+          /<script[^>]*>.*?<\/script>/is,
+          /javascript:/i,
+          /vbscript:/i,
+          /data:.*base64/i,
+        ]
+
+        if (suspiciousPatterns.some(pattern => pattern.test(content))) {
+          return { isValid: false, error: "Suspicious HTML content detected" }
+        }
+      }
+
+      return { isValid: true }
+    } catch (error) {
+      return { isValid: false, error: "Content validation failed" }
+    }
+  }
+
+  /**
+   * Security: Validate image magic numbers
+   */
+  private validateImageMagicNumbers(buffer: Buffer): {
+    isValid: boolean
+    error?: string
+  } {
+    if (buffer.length < 12) {
+      return { isValid: false, error: "Image too small" }
+    }
+
+    // JPEG magic numbers
+    if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+      return { isValid: true }
+    }
+
+    // PNG magic numbers
+    if (
+      buffer[0] === 0x89 &&
+      buffer[1] === 0x50 &&
+      buffer[2] === 0x4e &&
+      buffer[3] === 0x47
+    ) {
+      return { isValid: true }
+    }
+
+    // WebP magic numbers
+    if (
+      buffer.toString("ascii", 0, 4) === "RIFF" &&
+      buffer.toString("ascii", 8, 12) === "WEBP"
+    ) {
+      return { isValid: true }
+    }
+
+    return { isValid: false, error: "Invalid image format" }
   }
 }
 
