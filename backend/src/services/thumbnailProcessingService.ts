@@ -101,6 +101,7 @@ export class ThumbnailProcessingService {
 
       for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
         const batch = batches[batchIndex]
+        if (!batch) continue
 
         if (logProgress) {
           console.log(
@@ -243,8 +244,8 @@ export class ThumbnailProcessingService {
    */
   private async processBatch(
     videos: VideoMetadata[],
-    userEmbedding: number[],
-    similarityThreshold: number,
+    _userEmbedding: number[],
+    _similarityThreshold: number,
     maxConcurrency: number
   ): Promise<ThumbnailBatchResult[]> {
     const results: ThumbnailBatchResult[] = []
@@ -267,6 +268,8 @@ export class ThumbnailProcessingService {
     for (let i = 0; i < batchResults.length; i++) {
       const result = batchResults[i]
       const video = videos[i]
+
+      if (!result || !video) continue
 
       if (result.status === "fulfilled") {
         results.push(result.value)

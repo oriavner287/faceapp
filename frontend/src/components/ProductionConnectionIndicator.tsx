@@ -29,6 +29,8 @@ export function ProductionConnectionIndicator({
     refresh,
   } = useProductionConnection()
 
+  const [isExpanded, setIsExpanded] = React.useState(false)
+
   // Only show in production or when explicitly requested for development
   if (!showInDevelopment && !isProduction) return null
 
@@ -124,8 +126,6 @@ export function ProductionConnectionIndicator({
     if (isConnected) return "bg-green-100 border-green-300 text-green-800"
     return "bg-red-100 border-red-300 text-red-800"
   }
-
-  const [isExpanded, setIsExpanded] = React.useState(false)
 
   return (
     <div className={`${getPositionClasses()} ${className}`}>

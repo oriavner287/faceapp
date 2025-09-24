@@ -1,47 +1,115 @@
 // API contracts and shared types for oRPC integration
 // This file defines the type-safe contracts between frontend and backend
+// Security-focused validation following security-expert.md guidelines
 
 import { z } from "zod"
 
-// Input validation schemas for API endpoints
+// Security constants for validation
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+const MAX_STRING_LENGTH = 1000
+const MAX_ARRAY_LENGTH = 1000
+const VALID_SESSION_ID_PATTERN = /^[a-zA-Z0-9-_]{8,64}$/
+
+// Input validation schemas for API endpoints with security validation
 export const ProcessImageInputSchema = z.object({
-  imageData: z.instanceof(Buffer),
+  imageData: z
+    .instanceof(Buffer)
+    .refine(buffer => buffer.length > 0, "Image data cannot be empty")
+    .refine(buffer => buffer.length <= MAX_FILE_SIZE, "Image file too large")
+    .refine(buffer => {
+      // Security: Validate image magic numbers
+      if (buffer.length < 4) return false
+      // JPEG, PNG, WebP magic numbers
+      return (
+        (buffer[0] === 0xff && buffer[1] === 0xd8) || // JPEG
+        (buffer[0] === 0x89 && buffer[1] === 0x50) || // PNG
+        (buffer.toString("ascii", 0, 4) === "RIFF" && buffer.length >= 12)
+      ) // WebP
+    }, "Invalid image format"),
 })
 
 export const GetResultsInputSchema = z.object({
-  searchId: z.string().min(1),
+  searchId: z
+    .string()
+    .min(8, "Session ID too short")
+    .max(64, "Session ID too long")
+    .regex(VALID_SESSION_ID_PATTERN, "Invalid session ID format"),
 })
 
 export const ConfigureSearchInputSchema = z.object({
-  searchId: z.string().min(1),
-  threshold: z.number().min(0.1).max(1.0),
+  searchId: z
+    .string()
+    .min(8, "Session ID too short")
+    .max(64, "Session ID too long")
+    .regex(VALID_SESSION_ID_PATTERN, "Invalid session ID format"),
+  threshold: z
+    .number()
+    .min(0.1, "Threshold too low")
+    .max(1.0, "Threshold too high")
+    .refine(val => Number.isFinite(val), "Threshold must be a finite number"),
 })
 
 export const FetchVideosInputSchema = z.object({
-  embedding: z.array(z.number()),
-  threshold: z.number().min(0.1).max(1.0).optional().default(0.7),
+  embedding: z
+    .array(z.number().finite())
+    .min(1, "Embedding cannot be empty")
+    .max(MAX_ARRAY_LENGTH, "Embedding too large")
+    .refine(
+      arr => arr.every(n => Number.isFinite(n)),
+      "All embedding values must be finite"
+    ),
+  threshold: z
+    .number()
+    .min(0.1, "Threshold too low")
+    .max(1.0, "Threshold too high")
+    .refine(val => Number.isFinite(val), "Threshold must be a finite number")
+    .optional()
+    .default(0.7),
 })
 
-// Additional schemas for face router endpoints
+// Additional schemas for face router endpoints with security validation
 export const GetSessionInputSchema = z.object({
-  sessionId: z.string().min(1),
+  sessionId: z
+    .string()
+    .min(8, "Session ID too short")
+    .max(64, "Session ID too long")
+    .regex(VALID_SESSION_ID_PATTERN, "Invalid session ID format"),
 })
 
 export const UpdateThresholdInputSchema = z.object({
-  sessionId: z.string().min(1),
-  threshold: z.number().min(0.1).max(1.0),
+  sessionId: z
+    .string()
+    .min(8, "Session ID too short")
+    .max(64, "Session ID too long")
+    .regex(VALID_SESSION_ID_PATTERN, "Invalid session ID format"),
+  threshold: z
+    .number()
+    .min(0.1, "Threshold too low")
+    .max(1.0, "Threshold too high")
+    .refine(val => Number.isFinite(val), "Threshold must be a finite number"),
 })
 
 export const DeleteSessionInputSchema = z.object({
-  sessionId: z.string().min(1),
+  sessionId: z
+    .string()
+    .min(8, "Session ID too short")
+    .max(64, "Session ID too long")
+    .regex(VALID_SESSION_ID_PATTERN, "Invalid session ID format"),
 })
 
-// Output type schemas (for runtime validation if needed)
+// Security-focused error response schema
+export const SecurityErrorSchema = z.object({
+  code: z.string().max(50),
+  message: z.string().max(MAX_STRING_LENGTH),
+})
+
+// Output type schemas with security error handling
 export const ProcessImageOutputSchema = z.object({
   success: z.boolean(),
   faceDetected: z.boolean(),
-  searchId: z.string(),
-  embedding: z.array(z.number()).optional(),
+  searchId: z.string().max(64),
+  embedding: z.array(z.number().finite()).max(MAX_ARRAY_LENGTH).optional(),
+  error: SecurityErrorSchema.optional(),
 })
 
 export const GetResultsOutputSchema = z.object({

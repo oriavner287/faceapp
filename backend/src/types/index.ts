@@ -311,8 +311,7 @@ export class ValidationSchemas {
   }
 }
 
-// Export validation utilities
-export * from "../utils/validation.js"
+// Validation utilities are now handled by Zod schemas in contracts/api.ts
 // Export configuration
 export * from "../config/index.js"
 

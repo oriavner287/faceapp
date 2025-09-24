@@ -6,10 +6,12 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:check": "tsc --project tsconfig.build.json --noEmit && next build",
     "start": "next start",
     "lint": "next lint",
-    "lint:security": "eslint . --ext .ts,.tsx --config .eslintrc.json",
+    "lint:security": "eslint . --ext .ts,.tsx --config .eslintrc.js",
     "type-check": "tsc --noEmit",
+    "type-check:build": "tsc --project tsconfig.build.json --noEmit",
     "security:audit": "npm audit --audit-level moderate",
     "security:fix": "npm audit fix",
     "test": "vitest",

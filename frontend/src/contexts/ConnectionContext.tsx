@@ -16,9 +16,9 @@ interface ConnectionState {
   environment: "development" | "production"
   apiUrl: string
   backendInfo: {
-    environment?: string
-    timestamp?: string
-    apiBaseUrl?: string
+    environment: string
+    timestamp: string
+    apiBaseUrl: string
   } | null
 }
 
@@ -78,9 +78,10 @@ export function ConnectionProvider({
           lastChecked: new Date(),
           error: null,
           backendInfo: {
-            environment: healthResponse.data?.environment,
-            timestamp: healthResponse.data?.timestamp,
-            apiBaseUrl: healthResponse.data?.apiBaseUrl,
+            environment: healthResponse.data?.environment || "unknown",
+            timestamp:
+              healthResponse.data?.timestamp || new Date().toISOString(),
+            apiBaseUrl: healthResponse.data?.apiBaseUrl || "unknown",
           },
         }))
       } else {
@@ -139,6 +140,7 @@ export function ConnectionProvider({
     return () => {
       stopMonitoring()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoStart, checkInterval])
 
   // Cleanup on unmount

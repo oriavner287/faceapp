@@ -100,8 +100,8 @@ describe("SimilarityMatchingService", () => {
     })
 
     it("should work with 512-dimensional embeddings", () => {
-      const embedding1 = new Array(512).fill(0).map((_, i) => Math.random())
-      const embedding2 = new Array(512).fill(0).map((_, i) => Math.random())
+      const embedding1 = new Array(512).fill(0).map(() => Math.random())
+      const embedding2 = new Array(512).fill(0).map(() => Math.random())
 
       const result = service.calculateCosineSimilarity(embedding1, embedding2)
 

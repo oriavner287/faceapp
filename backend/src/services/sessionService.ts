@@ -250,7 +250,10 @@ export class SessionService {
       if (!sessionResult.success || !sessionResult.data) {
         return {
           success: false,
-          error: sessionResult.error,
+          error: sessionResult.error || {
+            code: "SESSION_NOT_FOUND" as const,
+            message: "Session not found",
+          },
         }
       }
 

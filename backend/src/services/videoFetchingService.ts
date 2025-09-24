@@ -170,6 +170,8 @@ export class VideoFetchingService {
         const result = scrapingResults[i]
         const config = WEBSITE_CONFIGS[i]
 
+        if (!result || !config) continue
+
         if (result.status === "fulfilled") {
           results.push(...result.value.videos)
           processedSites.push(result.value.processedSite)
@@ -326,7 +328,9 @@ export class VideoFetchingService {
               const title =
                 titleElement?.textContent?.trim() || `Video ${index + 1}`
               const thumbnailUrl =
-                thumbnailElement?.src || thumbnailElement?.dataset?.src || ""
+                thumbnailElement?.src ||
+                thumbnailElement?.dataset?.["src"] ||
+                ""
               const videoUrl = linkElement?.href || ""
 
               if (thumbnailUrl && videoUrl) {
@@ -349,6 +353,8 @@ export class VideoFetchingService {
       // Process extracted data
       for (let i = 0; i < videoData.length; i++) {
         const data = videoData[i]
+        if (!data) continue
+
         try {
           const video: VideoMetadata = {
             id: `${config.name.toLowerCase().replace(/\s+/g, "-")}-${i + 1}`,
@@ -433,6 +439,8 @@ export class VideoFetchingService {
             `Failed to process video ${index + 1} from ${config.name}`
           )
         }
+
+        return undefined // Explicit return for each iteration
       })
     } catch (error) {
       const errorMsg = `Cheerio scraping failed for ${config.name}: ${

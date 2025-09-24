@@ -84,8 +84,8 @@ export class SimilarityMatchingService {
       let magnitude2 = 0
 
       for (let i = 0; i < embedding1.length; i++) {
-        const val1 = embedding1[i]
-        const val2 = embedding2[i]
+        const val1 = embedding1[i]!
+        const val2 = embedding2[i]!
 
         dotProduct += val1 * val2
         magnitude1 += val1 * val1

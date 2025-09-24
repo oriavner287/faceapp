@@ -1,4 +1,6 @@
-import { FILE_CONSTRAINTS, SIMILARITY_CONSTRAINTS, } from "../types/index.js";
+import { FILE_CONSTRAINTS, SIMILARITY_CONSTRAINTS,
+// Request types are defined in contracts/api.ts
+ } from "../types/index.js";
 /**
  * Comprehensive validation utilities for the face video search application
  */

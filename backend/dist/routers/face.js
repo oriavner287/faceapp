@@ -4,6 +4,7 @@ import { ProcessImageInputSchema, } from "../contracts/api.js";
 import { faceDetectionService } from "../services/faceDetectionService.js";
 import { sessionService } from "../services/sessionService.js";
 import { ValidationSchemas, SIMILARITY_CONSTRAINTS, FILE_CONSTRAINTS, } from "../types/index.js";
+import { validateImageMagicNumbers, SecurityErrors, } from "../middleware/security.js";
 // Additional input schemas for enhanced face router
 const GetSessionInputSchema = z.object({
     sessionId: z.string().min(1),
@@ -18,76 +19,8 @@ const UpdateThresholdInputSchema = z.object({
 const DeleteSessionInputSchema = z.object({
     sessionId: z.string().min(1),
 });
-// Output schemas for new endpoints
-const GetSessionOutputSchema = z.object({
-    success: z.boolean(),
-    session: z
-        .object({
-        id: z.string(),
-        status: z.enum(["processing", "completed", "error"]),
-        results: z.array(z.any()),
-        threshold: z.number(),
-        createdAt: z.string(),
-        expiresAt: z.string(),
-    })
-        .optional(),
-    error: z
-        .object({
-        code: z.string(),
-        message: z.string(),
-    })
-        .optional(),
-});
-const UpdateThresholdOutputSchema = z.object({
-    success: z.boolean(),
-    updatedResults: z.array(z.any()).optional(),
-    error: z
-        .object({
-        code: z.string(),
-        message: z.string(),
-    })
-        .optional(),
-});
-const DeleteSessionOutputSchema = z.object({
-    success: z.boolean(),
-    error: z
-        .object({
-        code: z.string(),
-        message: z.string(),
-    })
-        .optional(),
-});
-// Helper function to validate image format
-async function validateImageFormat(buffer) {
-    try {
-        if (buffer.length < 4) {
-            return false;
-        }
-        // Check for common image signatures
-        // JPEG
-        if (buffer[0] === 0xff && buffer[1] === 0xd8) {
-            return true;
-        }
-        // PNG
-        if (buffer[0] === 0x89 &&
-            buffer[1] === 0x50 &&
-            buffer[2] === 0x4e &&
-            buffer[3] === 0x47) {
-            return true;
-        }
-        // WebP
-        if (buffer.length >= 12 &&
-            buffer.toString("ascii", 0, 4) === "RIFF" &&
-            buffer.toString("ascii", 8, 12) === "WEBP") {
-            return true;
-        }
-        return false;
-    }
-    catch (error) {
-        console.error("Image format validation error:", error);
-        return false;
-    }
-}
+// Output schemas are defined in contracts/api.ts
+// Image format validation is now handled by validateImageMagicNumbers from security middleware
 // Face processing router with enhanced functionality
 export const faceRouter = os.router({
     processImage: os
@@ -115,14 +48,15 @@ export const faceRouter = os.router({
                     searchId: "",
                 };
             }
-            // Validate image format by checking magic bytes
-            const isValidFormat = await validateImageFormat(input.imageData);
+            // Security: Validate image format by checking magic bytes
+            const isValidFormat = validateImageMagicNumbers(input.imageData);
             if (!isValidFormat) {
-                console.error("Invalid image format detected");
+                console.error("Invalid image format detected - magic number validation failed");
                 return {
                     success: false,
                     faceDetected: false,
                     searchId: "",
+                    error: SecurityErrors.INVALID_FILE_TYPE,
                 };
             }
             // Initialize face detection service with timeout
@@ -139,6 +73,13 @@ export const faceRouter = os.router({
                     searchId: "",
                 };
             }
+            // Security: Log biometric data processing for GDPR compliance
+            console.log(JSON.stringify({
+                type: "biometric_processing",
+                operation: "face_detection",
+                timestamp: new Date().toISOString(),
+                imageSize: input.imageData.length,
+            }));
             // Generate embedding from the uploaded image with timeout
             let embeddingResult;
             try {
@@ -151,6 +92,13 @@ export const faceRouter = os.router({
             }
             catch (timeoutError) {
                 console.error("Face detection timeout:", timeoutError);
+                // Security: Log failed biometric processing
+                console.log(JSON.stringify({
+                    type: "biometric_processing_failed",
+                    operation: "face_detection",
+                    timestamp: new Date().toISOString(),
+                    error: "timeout",
+                }));
                 return {
                     success: false,
                     faceDetected: false,

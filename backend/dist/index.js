@@ -2,17 +2,49 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { secureHeaders } from "hono/secure-headers";
 import { RPCHandler } from "@orpc/server/fetch";
 import { appRouter } from "./routers/index.js";
 import { config, API_ENDPOINTS } from "./config/index.js";
+import { auditLogger, sanitizeErrors, createRateLimiter, } from "./middleware/security.js";
 const app = new Hono();
-// Middleware
+// Security middleware following security-expert.md guidelines
 app.use("*", logger());
+app.use("*", auditLogger());
+app.use("*", sanitizeErrors());
+// Security headers middleware
+if (config.security.enableSecurityHeaders) {
+    app.use("*", secureHeaders({
+        strictTransportSecurity: "max-age=31536000; includeSubDomains; preload",
+        xFrameOptions: "DENY",
+        xContentTypeOptions: "nosniff",
+        referrerPolicy: "strict-origin-when-cross-origin",
+        crossOriginEmbedderPolicy: false, // Disable for face-api.js compatibility
+    }));
+}
+// Rate limiting middleware - different limits for different endpoints
+app.use("/api/face/*", createRateLimiter({
+    windowMs: config.security.rateLimiting.windowMs,
+    maxRequests: config.security.rateLimiting.faceDetectionMax,
+    message: "Too many face detection requests, please try again later",
+}));
+app.use("/api/*", createRateLimiter({
+    windowMs: config.security.rateLimiting.windowMs,
+    maxRequests: config.security.rateLimiting.maxRequests,
+    message: "Too many requests, please try again later",
+}));
+// CORS middleware with security-focused configuration
 app.use("*", cors({
-    origin: "*", // Allow all origins for now
-    credentials: false, // Disable credentials for simpler CORS
+    origin: config.allowedOrigins,
+    credentials: false, // Security: Disable credentials to prevent CSRF
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Accept", "Authorization"],
+    allowHeaders: [
+        "Content-Type",
+        "Accept",
+        "Authorization",
+        "X-Requested-With",
+    ],
+    maxAge: 86400, // Cache preflight for 24 hours
 }));
 // Health check endpoint - handle both OPTIONS and GET
 // Health check endpoint - MUST be before other routes

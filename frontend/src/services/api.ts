@@ -66,12 +66,10 @@ export interface FaceDetection {
  * API service class for handling backend communication
  */
 export class ApiService {
-  private baseUrl: string
   private timeout: number
   private retries: number
 
   constructor() {
-    this.baseUrl = apiConfig.baseUrl
     this.timeout = apiConfig.timeout
     this.retries = apiConfig.retries
   }

@@ -223,7 +223,7 @@ export async function uploadImage(formData: FormData): Promise<UploadResult> {
         error: {
           code: "VALIDATION_ERROR",
           message: fileValidation.error!,
-          details: fileValidation.details,
+          ...(fileValidation.details && { details: fileValidation.details }),
         },
       }
     }

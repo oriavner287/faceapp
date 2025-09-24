@@ -38,7 +38,7 @@ const mockSharp = vi.mocked(sharp)
 function createMockFile(
   name: string,
   type: string,
-  size: number,
+  _size: number,
   content: string = "mock-image-data"
 ): File {
   const blob = new Blob([content], { type })

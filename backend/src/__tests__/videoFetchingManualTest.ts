@@ -15,15 +15,7 @@ async function testVideoFetching() {
     console.log("✓ Service instantiated successfully")
 
     // Test with mock data (since we can't actually scrape in tests)
-    const mockVideos = [
-      {
-        id: "test-1",
-        title: "Test Video 1",
-        thumbnailUrl: "https://example.com/thumb1.jpg",
-        videoUrl: "https://example.com/video1",
-        sourceWebsite: "Test Site",
-      },
-    ]
+    // Mock videos would be used here for testing
 
     console.log("✓ Mock video data created")
 

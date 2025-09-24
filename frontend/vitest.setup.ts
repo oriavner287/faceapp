@@ -1,4 +1,4 @@
-import { vi } from "vitest"
+// Vitest setup file
 
 // Mock FormData for Node.js environment
 global.FormData = class FormData {

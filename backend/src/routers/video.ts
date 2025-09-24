@@ -5,7 +5,7 @@ import {
 } from "../contracts/api.js"
 import { videoFetchingService } from "../services/videoFetchingService.js"
 import { thumbnailProcessingService } from "../services/thumbnailProcessingService.js"
-import { VideoMatch, FaceDetection } from "../types/index.js"
+// Types are imported where needed
 
 // Video fetching router
 export const videoRouter = os.router({

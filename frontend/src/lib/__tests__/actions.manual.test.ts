@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
-import { uploadImage, getUploadInfo, cleanupTempFile } from "../actions"
+import { uploadImage, cleanupTempFile } from "../actions"
 import { writeFile, mkdir, rmdir, readdir } from "fs/promises"
 import { join } from "path"
 

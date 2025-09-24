@@ -63,6 +63,7 @@ export function useConnectionStatus(checkInterval: number = 0) {
       const interval = setInterval(checkConnection, checkInterval)
       return () => clearInterval(interval)
     }
+    return undefined
   }, [checkConnection, checkInterval])
 
   // Manual refresh function

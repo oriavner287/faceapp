@@ -2,6 +2,7 @@ import { os } from "@orpc/server";
 import { FetchVideosInputSchema, } from "../contracts/api.js";
 import { videoFetchingService } from "../services/videoFetchingService.js";
 import { thumbnailProcessingService } from "../services/thumbnailProcessingService.js";
+// Types are imported where needed
 // Video fetching router
 export const videoRouter = os.router({
     fetchFromSites: os

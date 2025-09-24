@@ -199,7 +199,7 @@ export class FaceDetectionService {
    */
   private selectLargestFace(faces: FaceDetection[]): FaceDetection {
     if (faces.length === 1) {
-      return faces[0]
+      return faces[0]!
     }
 
     return faces.reduce((largest, current) => {
