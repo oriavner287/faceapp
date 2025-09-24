@@ -19,6 +19,15 @@
     "type-check:build": "npm run type-check:build:backend && npm run type-check:build:frontend",
     "type-check:build:backend": "cd backend && npm run type-check:build",
     "type-check:build:frontend": "cd frontend && npm run type-check || echo 'Frontend type check completed with warnings'",
+    "lint": "npm run lint:backend && npm run lint:frontend",
+    "lint:backend": "cd backend && npm run lint",
+    "lint:frontend": "cd frontend && npm run lint:security",
+    "security:audit": "npm run security:audit:backend && npm run security:audit:frontend",
+    "security:audit:backend": "cd backend && npm run security:audit",
+    "security:audit:frontend": "cd frontend && npm run security:audit",
+    "security:fix": "npm run security:fix:backend && npm run security:fix:frontend",
+    "security:fix:backend": "cd backend && npm run security:fix",
+    "security:fix:frontend": "cd frontend && npm run security:fix",
     "install:all": "cd backend && npm install && cd ../frontend && npm install"
   },
   "devDependencies": {

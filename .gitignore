@@ -14,3 +14,59 @@ frontend/out/
 
 # Face detection models (downloaded automatically)
 backend/models/
+
+# Security: Environment files with secrets
+.env
+.env.local
+.env.production
+.env.development
+backend/.env
+frontend/.env
+*.env
+
+# Security: Temporary files and uploads
+temp/
+uploads/
+backend/temp/
+frontend/uploads/
+*.tmp
+*.temp
+
+# Security: Log files that might contain sensitive data
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Security: OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Security: IDE and editor files
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# Security: Package manager files
+.npm
+.yarn-integrity
+yarn.lock
+package-lock.json
+
+# Security: Coverage and test files
+coverage/
+.nyc_output/
+.coverage/
+
+# Security: Cache directories
+.cache/
+.parcel-cache/
+.eslintcache
