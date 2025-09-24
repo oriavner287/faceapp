@@ -17,12 +17,10 @@ export function getApiConfig(): ApiConfig {
   const isProduction = process.env.NODE_ENV === "production"
   const isDevelopment = !isProduction
 
-  // Use BACKEND_URL environment variable for all environments
-  // Note: NEXT_PUBLIC_BACKEND_URL is used for client-side access
+  // Use single NEXT_PUBLIC_BACKEND_URL for all environments
+  // This works for both server-side (CSP) and client-side (API calls)
   const backendUrl =
-    process.env.NEXT_PUBLIC_BACKEND_URL ||
-    process.env.BACKEND_URL ||
-    "http://localhost:3001"
+    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"
   const baseUrl = `${backendUrl}/api`
 
   return {
@@ -92,10 +90,7 @@ export function verifyUrlConstruction(): void {
     buildApiUrl(API_ENDPOINTS.UPLOAD_IMAGE)
   )
   console.log("Health URL:", buildHealthUrl())
-  console.log(
-    "Backend URL from env:",
-    process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL
-  )
+  console.log("Backend URL from env:", process.env.NEXT_PUBLIC_BACKEND_URL)
 
   // Verify the health URL is NOT using /api
   const healthUrl = buildHealthUrl()
@@ -170,22 +165,18 @@ export async function checkApiHealth(): Promise<boolean> {
 
 /**
  * Environment-specific configuration
- * All URLs now derived from environment variables
+ * All URLs now derived from single NEXT_PUBLIC_BACKEND_URL variable
  */
 export const ENV_CONFIG = {
   development: {
     apiUrl: `${
-      process.env.NEXT_PUBLIC_BACKEND_URL ||
-      process.env.BACKEND_URL ||
-      "http://localhost:3001"
+      process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"
     }/api`,
     frontendUrl: "http://localhost:3000",
   },
   production: {
     apiUrl: `${
-      process.env.NEXT_PUBLIC_BACKEND_URL ||
-      process.env.BACKEND_URL ||
-      "http://localhost:3001"
+      process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"
     }/api`,
     frontendUrl:
       process.env.NEXT_PUBLIC_FRONTEND_URL ||
