@@ -133,6 +133,8 @@ export class FaceDetectionService {
         },
         embedding: Array.from(detection.descriptor),
         confidence: detection.detection.score,
+        processedAt: new Date(), // Add timestamp for audit trail
+        accessCount: 0, // Initialize access count for monitoring
       }))
 
       return {

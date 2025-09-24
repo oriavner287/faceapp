@@ -4,8 +4,11 @@
 
 import { z } from "zod"
 
-// Security constants for validation
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+// Import configuration for consistent values
+import { config } from "../config/index.js"
+
+// Security constants for validation from configuration
+const MAX_FILE_SIZE = config.upload.maxFileSize
 const MAX_STRING_LENGTH = 1000
 const MAX_ARRAY_LENGTH = 1000
 const VALID_SESSION_ID_PATTERN = /^[a-zA-Z0-9-_]{8,64}$/
@@ -158,7 +161,7 @@ export const EncryptionMetadataSchema = z.object({
 export const SecurityErrorSchema = z.object({
   code: z.string().max(50),
   message: z.string().max(MAX_STRING_LENGTH),
-  timestamp: z.string().datetime().optional(),
+  timestamp: z.string().optional(),
   auditId: z.string().max(64).optional(), // For tracking security events
 })
 

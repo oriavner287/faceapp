@@ -67,10 +67,13 @@ export const SIMILARITY_CONSTRAINTS = {
   EMBEDDING_DIMENSIONS: [128, 512], // Common face embedding dimensions
 } as const
 
+// Import configuration for consistent values
+import { config } from "../config/index.js"
+
 export const FILE_CONSTRAINTS = {
-  MAX_SIZE_MB: 10,
-  MAX_SIZE_BYTES: 10 * 1024 * 1024,
-  ALLOWED_TYPES: ["image/jpeg", "image/png", "image/webp"] as const,
+  MAX_SIZE_MB: Math.round(config.upload.maxFileSize / 1024 / 1024),
+  MAX_SIZE_BYTES: config.upload.maxFileSize,
+  ALLOWED_TYPES: config.upload.allowedMimeTypes as readonly string[],
   ALLOWED_EXTENSIONS: [".jpg", ".jpeg", ".png", ".webp"] as const,
 } as const
 

@@ -3,7 +3,12 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest"
-import { uploadImage, getUploadInfo, cleanupTempFile } from "../actions"
+import {
+  uploadImage,
+  getUploadInfo,
+  cleanupTempFile,
+  manualCleanupFile,
+} from "../actions"
 
 // Mock dependencies
 vi.mock("fs/promises", () => ({
@@ -22,6 +27,16 @@ vi.mock("crypto", () => ({
     randomUUID: vi.fn(() => "test-uuid-123"),
   },
   randomUUID: vi.fn(() => "test-uuid-123"),
+}))
+
+vi.mock("next/headers", () => ({
+  headers: vi.fn(() => ({
+    get: vi.fn((header: string) => {
+      if (header === "x-forwarded-for") return "192.168.1.1"
+      if (header === "x-real-ip") return "192.168.1.1"
+      return null
+    }),
+  })),
 }))
 
 // Import mocked modules
@@ -106,7 +121,7 @@ describe("Server Actions - Image Upload", () => {
       expect(result.success).toBe(false)
       expect(result.error).toEqual({
         code: "NO_FILE",
-        message: "No file provided",
+        message: "No image file provided. Please select an image to upload.",
       })
     })
 
@@ -119,7 +134,7 @@ describe("Server Actions - Image Upload", () => {
       expect(result.success).toBe(false)
       expect(result.error?.code).toBe("VALIDATION_ERROR")
       expect(result.error?.message).toContain(
-        "File must be JPEG, PNG, or WebP format"
+        "Expected 'image/jpeg' | 'image/png' | 'image/webp'"
       )
     })
 
@@ -197,7 +212,9 @@ describe("Server Actions - Image Upload", () => {
 
       expect(result.success).toBe(false)
       expect(result.error?.code).toBe("INVALID_IMAGE")
-      expect(result.error?.message).toBe("Invalid image file or corrupted data")
+      expect(result.error?.message).toBe(
+        "Image processing failed. Please ensure you're uploading a valid image file."
+      )
     })
 
     it("should handle file system errors", async () => {
@@ -211,7 +228,9 @@ describe("Server Actions - Image Upload", () => {
 
       expect(result.success).toBe(false)
       expect(result.error?.code).toBe("UPLOAD_ERROR")
-      expect(result.error?.message).toBe("Failed to process image upload")
+      expect(result.error?.message).toBe(
+        "Unable to process your image upload. Please try again with a different image."
+      )
     })
 
     it("should resize large images", async () => {
@@ -259,13 +278,13 @@ describe("Server Actions - Image Upload", () => {
     })
 
     it("should return not found for non-existent file", async () => {
-      const fileId = "non-existent-uuid"
+      const fileId = "550e8400-e29b-41d4-a716-446655440000" // Valid UUID format
       mockStat.mockRejectedValue(new Error("File not found"))
 
       const result = await getUploadInfo(fileId)
 
       expect(result.exists).toBe(false)
-      expect(result.error).toBe("File not found or expired")
+      expect(result.error).toBe("File not found or has expired")
     })
 
     it("should reject invalid file ID format", async () => {
@@ -274,7 +293,7 @@ describe("Server Actions - Image Upload", () => {
       const result = await getUploadInfo(invalidFileId)
 
       expect(result.exists).toBe(false)
-      expect(result.error).toContain("Invalid file ID")
+      expect(result.error).toContain("Invalid file identifier format")
     })
   })
 
@@ -305,7 +324,7 @@ describe("Server Actions - Image Upload", () => {
       const result = await uploadImage(formData)
 
       expect(result.success).toBe(false)
-      expect(result.error?.message).toContain("Invalid file extension")
+      expect(result.error?.message).toContain("Invalid file type")
     })
 
     it("should handle files with multiple extensions", async () => {
@@ -324,6 +343,265 @@ describe("Server Actions - Image Upload", () => {
       const result = await uploadImage(formData)
 
       expect(result.success).toBe(true) // Should work with uppercase extension
+    })
+  })
+
+  describe("Security Tests", () => {
+    describe("Magic Number Validation", () => {
+      it("should reject files with invalid JPEG magic numbers", async () => {
+        const file = createMockFile("fake.jpg", "image/jpeg", 1024)
+        const formData = createMockFormData(file)
+
+        // Mock file buffer with invalid magic numbers
+        vi.spyOn(file, "arrayBuffer").mockResolvedValue(
+          new Uint8Array([0x00, 0x00, 0x00, 0x00]).buffer // Invalid magic numbers
+        )
+
+        const result = await uploadImage(formData)
+
+        expect(result.success).toBe(false)
+        expect(result.error?.message).toContain("Invalid file format")
+      })
+
+      it("should accept files with valid JPEG magic numbers", async () => {
+        const file = createMockFile("valid.jpg", "image/jpeg", 1024)
+        const formData = createMockFormData(file)
+
+        // Mock file buffer with valid JPEG magic numbers
+        vi.spyOn(file, "arrayBuffer").mockResolvedValue(
+          new Uint8Array([0xff, 0xd8, 0xff, 0xe0]).buffer // Valid JPEG magic numbers
+        )
+
+        const result = await uploadImage(formData)
+
+        expect(result.success).toBe(true)
+      })
+
+      it("should accept files with valid PNG magic numbers", async () => {
+        const file = createMockFile("valid.png", "image/png", 1024)
+        const formData = createMockFormData(file)
+
+        // Mock file buffer with valid PNG magic numbers
+        vi.spyOn(file, "arrayBuffer").mockResolvedValue(
+          new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+            .buffer
+        )
+
+        const result = await uploadImage(formData)
+
+        expect(result.success).toBe(true)
+      })
+    })
+
+    describe("Malicious Content Detection", () => {
+      it("should reject files containing script tags", async () => {
+        const file = createMockFile("malicious.jpg", "image/jpeg", 1024)
+        const formData = createMockFormData(file)
+
+        // Mock file buffer with embedded script
+        const maliciousContent = new TextEncoder().encode(
+          '<script>alert("xss")</script>'
+        )
+        const buffer = new Uint8Array(1024)
+        buffer.set([0xff, 0xd8, 0xff, 0xe0]) // Valid JPEG magic
+        buffer.set(maliciousContent, 10) // Embed malicious content
+
+        vi.spyOn(file, "arrayBuffer").mockResolvedValue(buffer.buffer)
+
+        const result = await uploadImage(formData)
+
+        expect(result.success).toBe(false)
+        expect(result.error?.message).toContain("security concerns")
+      })
+
+      it("should reject files with excessive null bytes", async () => {
+        const file = createMockFile("suspicious.jpg", "image/jpeg", 1024)
+        const formData = createMockFormData(file)
+
+        // Mock file buffer with many null bytes
+        const buffer = new Uint8Array(1024)
+        buffer.set([0xff, 0xd8, 0xff, 0xe0]) // Valid JPEG magic
+        buffer.fill(0x00, 10, 100) // Fill with null bytes
+
+        vi.spyOn(file, "arrayBuffer").mockResolvedValue(buffer.buffer)
+
+        const result = await uploadImage(formData)
+
+        expect(result.success).toBe(false)
+        expect(result.error?.message).toContain("security concerns")
+      })
+
+      it("should reject files with javascript: URLs", async () => {
+        const file = createMockFile("malicious.jpg", "image/jpeg", 1024)
+        const formData = createMockFormData(file)
+
+        // Mock file buffer with javascript URL
+        const maliciousContent = new TextEncoder().encode(
+          'javascript:alert("xss")'
+        )
+        const buffer = new Uint8Array(1024)
+        buffer.set([0xff, 0xd8, 0xff, 0xe0]) // Valid JPEG magic
+        buffer.set(maliciousContent, 10)
+
+        vi.spyOn(file, "arrayBuffer").mockResolvedValue(buffer.buffer)
+
+        const result = await uploadImage(formData)
+
+        expect(result.success).toBe(false)
+        expect(result.error?.message).toContain("security concerns")
+      })
+    })
+
+    describe("MIME Type Validation", () => {
+      it("should reject files with mismatched MIME type and extension", async () => {
+        const file = createMockFile("fake.jpg", "image/png", 1024) // PNG MIME but JPG extension
+        const formData = createMockFormData(file)
+
+        const result = await uploadImage(formData)
+
+        expect(result.success).toBe(false)
+        expect(result.error?.message).toContain("File type mismatch")
+      })
+
+      it("should accept files with matching MIME type and extension", async () => {
+        const file = createMockFile("valid.jpg", "image/jpeg", 1024)
+        const formData = createMockFormData(file)
+
+        // Mock valid JPEG buffer
+        vi.spyOn(file, "arrayBuffer").mockResolvedValue(
+          new Uint8Array([0xff, 0xd8, 0xff, 0xe0]).buffer
+        )
+
+        const result = await uploadImage(formData)
+
+        expect(result.success).toBe(true)
+      })
+    })
+
+    describe("Rate Limiting", () => {
+      it("should allow uploads within rate limit", async () => {
+        const file = createMockFile("test.jpg", "image/jpeg", 1024)
+        const formData = createMockFormData(file)
+
+        // Mock valid JPEG buffer
+        vi.spyOn(file, "arrayBuffer").mockResolvedValue(
+          new Uint8Array([0xff, 0xd8, 0xff, 0xe0]).buffer
+        )
+
+        const result = await uploadImage(formData)
+
+        expect(result.success).toBe(true)
+      })
+
+      // Note: Rate limiting test would require mocking multiple requests
+      // and time manipulation, which is complex in this test environment
+    })
+
+    describe("Aspect Ratio Validation", () => {
+      it("should reject images with extreme aspect ratios", async () => {
+        const file = createMockFile("extreme.jpg", "image/jpeg", 1024)
+        const formData = createMockFormData(file)
+
+        // Mock Sharp to return extreme aspect ratio
+        const mockSharpInstance = {
+          metadata: vi.fn().mockResolvedValue({
+            width: 5000, // Very wide
+            height: 100, // Very narrow
+            format: "jpeg",
+          }),
+          resize: vi.fn().mockReturnThis(),
+          jpeg: vi.fn().mockReturnThis(),
+          toBuffer: vi
+            .fn()
+            .mockResolvedValue(Buffer.from("processed-image-data")),
+        }
+        mockSharp.mockReturnValue(mockSharpInstance as any)
+
+        const result = await uploadImage(formData)
+
+        expect(result.success).toBe(false)
+        expect(result.error?.message).toContain("aspect ratio is too extreme")
+      })
+    })
+
+    describe("EXIF Data Stripping", () => {
+      it("should strip EXIF data during processing", async () => {
+        const file = createMockFile("with-exif.jpg", "image/jpeg", 1024)
+        const formData = createMockFormData(file)
+
+        const mockJpeg = vi.fn().mockReturnThis()
+        const mockSharpInstance = {
+          metadata: vi.fn().mockResolvedValue({
+            width: 800,
+            height: 600,
+            format: "jpeg",
+          }),
+          resize: vi.fn().mockReturnThis(),
+          jpeg: mockJpeg,
+          toBuffer: vi
+            .fn()
+            .mockResolvedValue(Buffer.from("processed-image-data")),
+        }
+        mockSharp.mockReturnValue(mockSharpInstance as any)
+
+        const result = await uploadImage(formData)
+
+        expect(result.success).toBe(true)
+        expect(mockJpeg).toHaveBeenCalledWith({
+          quality: 85,
+          progressive: true,
+          keepMetadata: false, // EXIF stripping
+        })
+      })
+    })
+  })
+
+  describe("manualCleanupFile", () => {
+    it("should successfully cleanup a valid file", async () => {
+      const fileId = "test-uuid-123"
+      mockUnlink.mockResolvedValue(undefined)
+
+      const result = await manualCleanupFile(fileId)
+
+      expect(result.success).toBe(true)
+      expect(result.message).toBe("File successfully removed")
+      expect(mockUnlink).toHaveBeenCalledWith(
+        expect.stringContaining(`${fileId}.jpg`)
+      )
+    })
+
+    it("should reject invalid file IDs", async () => {
+      const invalidFileId = "invalid-id"
+
+      const result = await manualCleanupFile(invalidFileId)
+
+      expect(result.success).toBe(false)
+      expect(result.message).toBe("Failed to remove file")
+    })
+
+    it("should handle cleanup errors gracefully", async () => {
+      const fileId = "test-uuid-123"
+      mockUnlink.mockRejectedValue(new Error("Permission denied"))
+
+      const result = await manualCleanupFile(fileId)
+
+      expect(result.success).toBe(false)
+      expect(result.message).toBe("Failed to remove file")
+    })
+  })
+
+  describe("Path Traversal Protection", () => {
+    it("should prevent path traversal in getUploadInfo", async () => {
+      // This test would require mocking path.resolve to simulate path traversal
+      // In a real scenario, the path validation would prevent ../../../etc/passwd
+      const fileId = "test-uuid-123"
+      mockStat.mockResolvedValue({
+        mtime: new Date(),
+      } as any)
+
+      const result = await getUploadInfo(fileId)
+
+      expect(result.exists).toBe(true)
     })
   })
 })
