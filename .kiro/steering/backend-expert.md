@@ -83,16 +83,25 @@ app.post("/api/rpc", async c => {
 
 - Use `ORPCError` for predictable business logic errors
 - Define custom error types in contracts for client consumption
-- Never expose internal errors or stack traces to clients
-- Log all errors with structured logging
+- **Never expose internal errors or stack traces to clients** (critical security requirement)
+- **Sanitize all error messages** before sending to client
+- Log all errors with structured logging for security monitoring
+- **Never include sensitive data** in error responses (file paths, database info, etc.)
 
 ```typescript
 import { ORPCError } from "@orpc/server"
 
+// Good: Sanitized error message
 throw new ORPCError({
   code: "BAD_REQUEST",
   message: "Invalid face image format",
 })
+
+// Bad: Never expose internal details
+// throw new ORPCError({
+//   code: "INTERNAL_ERROR",
+//   message: "Database connection failed at /var/lib/mysql/socket"
+// })
 ```
 
 ## File Organization
@@ -112,21 +121,49 @@ backend/src/
 
 ## Development Rules
 
-1. **Always validate inputs** with Zod schemas in contracts
+1. **Always validate inputs** with Zod schemas in contracts for security
 2. **Keep routers thin** - delegate to services for business logic
 3. **Use TypeScript strict mode** - no `any` types allowed
-4. **Test every procedure** with unit and integration tests
-5. **Handle errors gracefully** with proper error types and logging
+4. **Test every procedure** with unit and integration tests including security scenarios
+5. **Handle errors gracefully** with proper error types, logging, and sanitization
 6. **Maintain type safety** from database to client response
+7. **Never hardcode secrets** - use environment variables with placeholders like `<<SECRET_NAME>>`
+8. **Sanitize all outputs** - never expose internal server information to clients
+9. **Implement rate limiting** on all sensitive endpoints
+10. **Log security events** - track failed authentication, unusual patterns, access to biometric data
 
 ## Performance & Security
 
-- Validate file uploads with size and type restrictions
+### File Upload Security
+
+- **Validate file uploads** with size and type restrictions (MIME type validation)
+- **Scan for malicious files** before processing
+- **Use temporary storage** with automatic cleanup
+- **Enforce size limits** to prevent DoS attacks (max 10MB for images)
+
+### Biometric Data Protection
+
+- **Encrypt face embeddings** before storage using secure encryption
+- **Automatic cleanup** of biometric data after processing
+- **Minimal retention** - store only during active processing
+- **Access logging** for all biometric data operations
+
+### API Security
+
+- **Input validation** using Zod schemas for all endpoints
+- **Rate limiting** on face detection and video search endpoints
+- **Authentication required** - validate sessions server-side
+- **Error sanitization** - never expose internal errors or stack traces
+
+### General Security
+
 - Use streaming for large file operations
 - Implement proper CORS configuration
-- Add request logging and monitoring
-- Cache expensive operations (face embeddings, video processing)
-- Use environment variables for sensitive configuration
+- Add comprehensive request logging and monitoring
+- Cache expensive operations (face embeddings, video processing) securely
+- **Use environment variables** for sensitive configuration (never hardcode secrets)
+- **URL validation** for external video fetching
+- **Timeout handling** for external requests
 
 ## Testing Strategy
 

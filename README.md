@@ -1,6 +1,6 @@
 # Face Video Search Application
 
-A full-stack monorepo application for searching videos based on facial recognition technology. Built with modern architecture featuring end-to-end TypeScript type safety, oRPC for type-safe API communication, and comprehensive steering guidelines for consistent development.
+A full-stack monorepo application for searching videos based on facial recognition technology. Built with modern architecture featuring end-to-end TypeScript type safety, oRPC for type-safe API communication, and comprehensive security guidelines for biometric data protection.
 
 ## Architecture
 
@@ -196,12 +196,25 @@ Following the spec-driven development methodology:
 ## Contributing
 
 1. **Follow Steering Guidelines**: Adhere to patterns in `.kiro/steering/`
-2. **Maintain Type Safety**: Use oRPC contracts and TypeScript strictly
-3. **Component Patterns**: Follow frontend-expert.md for React components
-4. **Service Architecture**: Follow backend-expert.md for business logic
-5. **File Organization**: Use structure.md for consistent file placement
-6. **Testing**: Write tests following the established patterns
-7. **Type Checking**: Run `npm run type-check` before committing
+2. **Security First**: Follow security-expert.md for biometric data handling
+3. **Maintain Type Safety**: Use oRPC contracts and TypeScript strictly
+4. **Component Patterns**: Follow frontend-expert.md for React components
+5. **Service Architecture**: Follow backend-expert.md for business logic
+6. **File Organization**: Use structure.md for consistent file placement
+7. **Testing**: Write tests following the established patterns
+8. **Type Checking**: Run `npm run type-check` before committing
+9. **Security Review**: Ensure no secrets in code, proper input validation
+
+## Security & Privacy
+
+This application handles sensitive biometric data and follows strict security guidelines:
+
+- **Biometric Data Protection**: Face embeddings are treated as PII under GDPR
+- **Minimal Retention**: Face data stored only during processing, automatic deletion
+- **Encryption**: All biometric data encrypted at rest and in transit
+- **Input Validation**: Comprehensive file validation and sanitization
+- **Rate Limiting**: Protection against DoS attacks on face detection endpoints
+- **Audit Trails**: Complete logging of biometric data access and processing
 
 ## Key Dependencies
 

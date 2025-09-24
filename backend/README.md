@@ -1,18 +1,20 @@
 # Face Video Search Backend
 
-Backend service for the Face Video Search application, built following the patterns from `.kiro/steering/backend-expert.md` and `.kiro/steering/tech.md`.
+Backend service for the Face Video Search application, built following the patterns from `.kiro/steering/backend-expert.md`, `.kiro/steering/tech.md`, and comprehensive security guidelines from `.kiro/steering/security-expert.md`.
 
 ## Architecture
 
-Following the monorepo backend architecture:
+Following the monorepo backend architecture with comprehensive security measures:
 
 - **Runtime**: Node.js 18+ with ESM modules
 - **Framework**: Hono (fast, lightweight web framework)
-- **RPC**: oRPC server for type-safe API endpoints
+- **RPC**: oRPC server for type-safe API endpoints with input validation
 - **Validation**: Zod schemas for runtime type validation and API contracts
+- **Security**: Comprehensive input validation, rate limiting, error sanitization
 - **Face Recognition**: face-api.js with Canvas polyfills for Node.js
 - **Image Processing**: Sharp for image manipulation and thumbnail generation
 - **Web Scraping**: Puppeteer and Cheerio for video fetching and metadata extraction
+- **Privacy**: Automatic cleanup of biometric data, encryption at rest
 - **Testing**: Jest with ts-jest for ESM support and service layer testing
 
 ## API Structure
@@ -21,16 +23,18 @@ Following the service layer patterns from backend steering guidelines:
 
 ### Service Layer (`/src/services/`)
 
-- **faceDetectionService.ts**: Face recognition and embedding generation
-- **videoFetchingService.ts**: Video scraping and thumbnail processing
-- **sessionService.ts**: Search session management and caching
-- **cleanupService.ts**: Privacy-focused data cleanup and file management
+- **faceDetectionService.ts**: Face recognition and embedding generation with encryption
+- **videoFetchingService.ts**: Video scraping with URL validation and content filtering
+- **sessionService.ts**: Search session management with automatic cleanup
+- **cleanupService.ts**: Privacy-focused data cleanup and secure file management
+- **Security Features**: All services implement input validation, rate limiting, and audit logging
 
 ### oRPC Routers (`/src/routers/`)
 
-- **faceRouter.ts**: Face processing endpoints with type-safe contracts
-- **videoRouter.ts**: Video search and fetching with parallel processing
-- **sessionRouter.ts**: Session management with automatic cleanup
+- **faceRouter.ts**: Face processing endpoints with comprehensive security validation
+- **videoRouter.ts**: Video search with URL validation and request limits
+- **sessionRouter.ts**: Session management with access logging and audit trails
+- **Security**: All routers implement authentication, input validation, and error sanitization
 
 ### API Contracts (`/src/contracts/`)
 
@@ -122,3 +126,7 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed deployment instructions.
 - `PORT`: Server port (auto-set by platforms)
 - `HOST`: Host to bind to (default: 0.0.0.0)
 - `FRONTEND_URL`: Frontend domain for CORS
+- `ENCRYPTION_KEY`: Key for encrypting face embeddings (use placeholder `<<ENCRYPTION_KEY>>`)
+- `DATABASE_URL`: Database connection string (use placeholder `<<DATABASE_URL>>`)
+
+**Security Note**: Never commit actual secrets to version control. Use placeholders like `<<SECRET_NAME>>` in documentation and environment files.

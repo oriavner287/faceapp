@@ -1,18 +1,20 @@
 # Production Connection Status Guide
 
-This guide explains the oRPC-based connection monitoring system following frontend-expert.md patterns and Next.js 15 App Router architecture.
+This guide explains the secure oRPC-based connection monitoring system following frontend-expert.md patterns and Next.js 15 App Router architecture with comprehensive security measures.
 
 ## What's Been Implemented
 
 ### ✅ Connection Status Components Following Frontend Steering Patterns:
 
-Components built using function declarations and proper TypeScript interfaces:
+Components built using function declarations and proper TypeScript interfaces with security considerations:
 
 1. **ConnectionBanner** - Error boundary pattern with shadcn/ui Alert components
 2. **ProductionConnectionDot** - Minimal indicator with proper accessibility (ARIA labels)
 3. **EnvironmentBadge** - Environment detection with Tailwind CSS styling
 4. **ProductionConnectionIndicator** - Floating status with React hooks in proper order
 5. **ConnectionDebug** - Debug panel with comprehensive error handling
+   - **Security**: No sensitive data exposed in debug information
+   - **Privacy**: Connection details sanitized for client display
 
 ### ✅ Global Connection Provider Following React Context Patterns:
 
@@ -20,8 +22,10 @@ Located in `frontend/src/app/layout.tsx` following Next.js 15 App Router structu
 
 - **ConnectionProvider**: React Context following frontend-expert.md session management patterns
 - **oRPC Health Checks**: Type-safe health monitoring using oRPC client
+- **Security**: Health check endpoints sanitize internal server information
 - **Hook Organization**: Proper React hooks order (data fetching, logic, primitives, computed values)
 - **Error Boundaries**: Comprehensive error handling with FaceSearchErrorBoundary patterns
+- **Privacy**: No sensitive connection details exposed to client
 
 ## How to Verify Connection Status
 

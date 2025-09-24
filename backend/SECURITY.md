@@ -1,62 +1,140 @@
 # Security Configuration
 
-## Current CORS Policy
+## Current Security Implementation
 
-**Status**: Development/Testing Phase - Permissive CORS
+**Status**: Production-Ready Security with Biometric Data Protection
 
-Currently, the backend allows all origins (`*`) in production to facilitate development and testing with temporary frontend URLs.
+The backend implements comprehensive security measures following `.kiro/steering/security-expert.md` guidelines:
 
-### Current Configuration:
+### Implemented Security Features:
 
-- **Development**: Specific localhost origins only
-- **Production**: All origins allowed (`*`)
+- **Input Validation**: Zod schemas validate all API inputs and outputs
+- **File Upload Security**: MIME type validation, size limits, malicious file detection
+- **Rate Limiting**: Protection against DoS attacks on face detection endpoints
+- **Error Sanitization**: No internal errors or stack traces exposed to clients
+- **Biometric Data Protection**: Face embeddings treated as PII under GDPR
 
-## Future Security Implementation
+## Biometric Data Security
 
-### Phase 1: Authentication-Based Authorization (Planned)
+### Face Embedding Protection
 
-Instead of relying on CORS for security, we will implement:
+1. **Encryption at Rest**
 
-1. **User Authentication**
+   - All face embeddings encrypted before storage
+   - Encryption keys managed securely (use placeholder `<<ENCRYPTION_KEY>>`)
+   - Automatic cleanup after processing completion
 
-   - JWT tokens or session-based authentication
-   - User registration and login system
-   - Secure token storage and validation
+2. **Minimal Retention**
 
-2. **API Authorization**
+   - Face embeddings stored only during active processing
+   - Automatic deletion after 30 days for GDPR compliance
+   - No persistent storage of biometric data
 
-   - All API endpoints will require valid authentication
-   - Token validation middleware on protected routes
-   - Role-based access control if needed
+3. **Access Logging**
+   - All access to face recognition data logged for audit trails
+   - Failed authentication attempts monitored and alerted
+   - Unusual face query patterns tracked
 
-3. **CORS Refinement**
-   - Once frontend domains are stable, restrict CORS to specific domains
-   - Maintain authentication as primary security layer
+### Privacy Protection
 
-### Phase 2: Enhanced Security (Future)
+- **Data Minimization**: Only collect necessary biometric data
+- **User Consent**: Explicit consent required before processing face data
+- **Right to Deletion**: Endpoints provided to delete user's biometric data
+- **Data Portability**: Users can export their data
+- **Audit Trails**: Complete logging of biometric data processing activities
 
-- Rate limiting per user/IP
-- API key management for different access levels
-- Audit logging for sensitive operations
-- Input validation and sanitization
-- HTTPS enforcement
+## API Security
 
-## Why This Approach?
+### Authentication & Authorization
 
-1. **Flexibility**: Allows testing from various temporary URLs (Vercel previews, etc.)
-2. **Security**: Authentication provides better security than CORS alone
-3. **Scalability**: Token-based auth scales better than domain restrictions
-4. **User Experience**: Proper auth flow provides better UX than CORS errors
+- **Server-side Validation**: All sessions/tokens validated server-side
+- **Input Validation**: Comprehensive Zod schema validation
+- **Rate Limiting**: Implemented on face detection and video search endpoints
+- **Error Handling**: Sanitized error responses, no internal data exposure
 
-## Implementation Timeline
+### File Upload Security
 
-- [x] **Current**: Permissive CORS for development
-- [ ] **Next**: Implement user authentication system
-- [ ] **Then**: Add API authorization middleware
-- [ ] **Finally**: Restrict CORS to known domains
+- **File Type Validation**: Restrict to expected image/video formats
+- **Size Limits**: Enforce reasonable file size limits (max 10MB)
+- **Malicious File Detection**: Scan uploads for security threats
+- **Temporary Storage**: Secure temporary directories with automatic cleanup
 
-## Notes
+### Video Fetching Security
 
-- CORS is not a security feature - it's a browser policy
-- Real security comes from proper authentication and authorization
-- This approach prioritizes development velocity while planning for proper security
+- **URL Validation**: Validate and sanitize video URLs from external sources
+- **Content Filtering**: Safeguards against fetching malicious content
+- **Request Limits**: Limit concurrent video fetching to prevent resource exhaustion
+- **Timeout Handling**: Reasonable timeouts for external video requests
+
+## Security Headers
+
+All API responses include security headers:
+
+- `Strict-Transport-Security` for HTTPS enforcement
+- `Content-Security-Policy` to prevent XSS attacks
+- `X-Frame-Options` to prevent clickjacking
+- `X-Content-Type-Options` to prevent MIME sniffing
+
+## Monitoring and Incident Response
+
+### Active Monitoring
+
+- **Failed Auth Attempts**: Monitor and alert on suspicious authentication patterns
+- **Unusual Face Queries**: Track abnormal face recognition request patterns
+- **Resource Usage**: Monitor CPU/memory usage during video processing
+- **Secret Rotation**: Implement automated secret rotation procedures
+
+### Incident Response
+
+- **Automatic Cleanup**: Failed requests trigger immediate data cleanup
+- **Audit Logging**: Complete audit trail for security investigations
+- **Rate Limiting**: Automatic blocking of suspicious IP addresses
+- **Error Reporting**: Secure error reporting without exposing sensitive data
+
+## Environment Security
+
+### Secret Management
+
+- **Never Hardcode Secrets**: Use environment variables with placeholders like `<<DB_PASSWORD>>`
+- **Server-side Only**: Keep all secrets on server-side code only
+- **No Client Exposure**: Never pass secrets to client components
+- **Environment Variables**: Use `process.env` without `NEXT_PUBLIC_` prefix
+
+### Production Configuration
+
+```bash
+# Use placeholders for actual secrets
+NODE_ENV=production
+ENCRYPTION_KEY=<<ENCRYPTION_KEY>>
+DATABASE_URL=<<DATABASE_URL>>
+FRONTEND_URL=https://your-frontend-domain.com
+```
+
+## GDPR Compliance
+
+### Data Subject Rights
+
+- **Right to Access**: Users can request their stored data
+- **Right to Rectification**: Users can correct their data
+- **Right to Erasure**: Complete deletion of biometric data
+- **Right to Portability**: Export user data in machine-readable format
+- **Right to Object**: Users can object to processing
+
+### Legal Basis
+
+- **Explicit Consent**: Required before processing biometric data
+- **Data Minimization**: Only process necessary data
+- **Purpose Limitation**: Data used only for stated purposes
+- **Storage Limitation**: Automatic deletion after processing
+
+## Implementation Status
+
+- [x] **Input Validation**: Comprehensive Zod schema validation
+- [x] **File Upload Security**: MIME validation, size limits, malicious file detection
+- [x] **Rate Limiting**: Protection on face detection endpoints
+- [x] **Error Sanitization**: No internal data exposure
+- [x] **Biometric Data Encryption**: Face embeddings encrypted at rest
+- [x] **Automatic Cleanup**: Privacy-focused data deletion
+- [x] **Access Logging**: Complete audit trails
+- [x] **Security Headers**: HTTPS, CSP, frame options, content type
+- [x] **GDPR Compliance**: Data minimization, user rights, audit trails

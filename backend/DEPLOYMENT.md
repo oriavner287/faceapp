@@ -1,5 +1,24 @@
 # Backend Deployment Guide
 
+## Security Considerations for Deployment
+
+### Environment Variables Security
+
+- **Never commit secrets**: Use placeholders like `<<DB_PASSWORD>>` in documentation
+- **Server-side only**: All secrets must remain on server-side
+- **Encryption keys**: Use secure key management for face embedding encryption
+- **Audit logging**: Enable comprehensive logging for production monitoring
+
+### Production Security Checklist
+
+- [ ] All secrets use environment variables (no hardcoded values)
+- [ ] HTTPS enforced with proper security headers
+- [ ] Rate limiting configured for face detection endpoints
+- [ ] Input validation enabled for all API endpoints
+- [ ] Biometric data encryption configured
+- [ ] Automatic cleanup scheduled for temporary files
+- [ ] Monitoring and alerting configured
+
 ## Deployment Fixes Applied
 
 ### 1. Workspace Configuration Issues
@@ -48,11 +67,15 @@ npm run start:backend
 
 ### Environment Variables
 
-Set these in your Render dashboard:
+Set these in your Render dashboard (use actual values, not placeholders):
 
 - `NODE_ENV=production`
 - `PORT=3001` (or let Render set this)
 - `FRONTEND_URL=https://your-frontend-domain.com`
+- `ENCRYPTION_KEY=your-actual-encryption-key` (replace `<<ENCRYPTION_KEY>>`)
+- `DATABASE_URL=your-actual-database-url` (replace `<<DATABASE_URL>>`)
+
+**Security Note**: Never commit actual secrets to version control. The placeholders in documentation should be replaced with real values only in the deployment environment.
 
 ## Build Process
 

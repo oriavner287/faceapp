@@ -64,24 +64,27 @@ frontend/
 
 ### Backend Organization
 
-- **Contracts First**: API contracts in `/contracts` define the interface between frontend and backend
-- **Service Layer**: Business logic isolated in `/services` with clear responsibilities
-- **Router Layer**: oRPC routers handle HTTP concerns and delegate to services
-- **Type Safety**: Shared types and Zod schemas ensure runtime validation
+- **Contracts First**: API contracts in `/contracts` define secure interfaces between frontend and backend
+- **Service Layer**: Business logic isolated in `/services` with security validation and clear responsibilities
+- **Router Layer**: oRPC routers handle HTTP concerns, input validation, and delegate to services
+- **Type Safety**: Shared types and Zod schemas ensure runtime validation and security
+- **Security Layer**: Input validation, rate limiting, and biometric data protection throughout
 
 ### Frontend Organization
 
-- **App Router**: Next.js 15 App Router structure in `/src/app`
-- **Component Hierarchy**: UI components in `/components/ui`, feature components grouped by domain
-- **Service Layer**: API calls abstracted in `/services` using oRPC client
-- **Hooks & Context**: Custom hooks and React context for state management
+- **App Router**: Next.js 15 App Router structure in `/src/app` with security considerations
+- **Component Hierarchy**: UI components in `/components/ui` with accessibility, feature components grouped by domain
+- **Service Layer**: API calls abstracted in `/services` using oRPC client with input validation
+- **Hooks & Context**: Custom hooks and React context for state management with privacy protection
+- **Security**: Client-side validation, no sensitive data exposure, proper error handling
 
 ### Shared Patterns
 
-- **TypeScript First**: All code written in TypeScript with strict type checking
+- **TypeScript First**: All code written in TypeScript with strict type checking for security
 - **ESM Modules**: Modern ES module syntax throughout
-- **Test Co-location**: Tests in `__tests__` directories near source code
-- **Configuration**: Environment-specific config files at appropriate levels
+- **Test Co-location**: Tests in `__tests__` directories near source code with security test cases
+- **Configuration**: Environment-specific config files with secure secret management
+- **Security**: Input validation, error sanitization, and privacy protection across all layers
 
 ### File Naming Conventions
 

@@ -16,6 +16,7 @@ fileMatchPattern:
 - **Role**: Senior Frontend Developer specializing in Face Video Search applications
 - **Core Technologies**: Next.js 15 App Router, React 19, TypeScript, oRPC, Tailwind CSS
 - **Specializations**: Face detection UI, video search interfaces, real-time processing, performance optimization
+- **Security Focus**: Client-side input validation, privacy protection, accessibility, no sensitive data exposure
 
 ## Architecture & Technology Stack
 
@@ -28,10 +29,11 @@ fileMatchPattern:
 
 ### Core Technologies
 
-- **oRPC Integration**: Type-safe API communication with backend
-- **Component Library**: Radix UI primitives with Tailwind CSS styling
-- **State Management**: React Context for global state, oRPC for server state
-- **File Handling**: React Dropzone for uploads, image processing integration
+- **oRPC Integration**: Type-safe API communication with backend and input validation
+- **Component Library**: Radix UI primitives with Tailwind CSS styling and accessibility support
+- **State Management**: React Context for global state, oRPC for server state with privacy protection
+- **File Handling**: React Dropzone for uploads with security validation and image processing integration
+- **Security**: Client-side validation, no sensitive data exposure, proper error handling
 
 ## Code Style & Component Architecture
 
@@ -118,11 +120,11 @@ import { useCallback, useState } from "react"
 import { useDropzone } from "react-dropzone"
 import { detectFaces } from "@/lib/actions"
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB - Security: Prevent DoS attacks
 const ACCEPTED_TYPES = {
   "image/jpeg": [".jpg", ".jpeg"],
   "image/png": [".png"],
-}
+} // Security: Restrict to safe image formats only
 
 export default function FaceUpload() {
   const [isProcessing, setIsProcessing] = useState(false)
@@ -141,10 +143,13 @@ export default function FaceUpload() {
       if (result.success) {
         setDetectedFaces(result.faces)
       } else {
+        // Security: Display sanitized error messages only
         setError(result.error?.message ?? "Face detection failed")
       }
     } catch (err) {
+      // Security: Never expose internal error details to user
       setError("Upload failed. Please try again.")
+      console.error("Face detection error:", err) // Log for debugging only
     } finally {
       setIsProcessing(false)
     }
@@ -685,13 +690,15 @@ describe("FaceUpload", () => {
 
 ## Key Principles
 
-1. **Type Safety First**: Use TypeScript strictly, leverage oRPC contracts
-2. **Performance Minded**: Implement virtualization, caching, and optimization
-3. **User Experience**: Provide clear loading states, error handling, and feedback
-4. **Accessibility**: Include ARIA labels, keyboard navigation, semantic HTML
-5. **Maintainable Code**: Follow consistent patterns, use composition over complexity
-6. **Modern React**: Prefer Server Components, use hooks effectively, minimize effects
-7. **Face Search Specific**: Handle image processing, real-time updates, session management
+1. **Security First**: Never expose sensitive data, validate all inputs, sanitize error messages
+2. **Type Safety**: Use TypeScript strictly, leverage oRPC contracts for validation
+3. **Privacy Protection**: Handle biometric data responsibly, automatic cleanup, no persistent storage
+4. **Performance Minded**: Implement virtualization, caching, and optimization
+5. **User Experience**: Provide clear loading states, error handling, and feedback
+6. **Accessibility**: Include ARIA labels, keyboard navigation, semantic HTML
+7. **Maintainable Code**: Follow consistent patterns, use composition over complexity
+8. **Modern React**: Prefer Server Components, use hooks effectively, minimize effects
+9. **Face Search Specific**: Handle image processing, real-time updates, session management with privacy
 
 ## Module Alias Configuration
 

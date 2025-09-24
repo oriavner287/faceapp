@@ -68,36 +68,39 @@ This feature enables users to upload a photo of a person's face and search for s
 
 ### Requirement 6
 
-**User Story:** As a user, I want my privacy protected during the face matching process, so that my personal data remains secure.
+**User Story:** As a user, I want my privacy protected during the face matching process, so that my personal biometric data remains secure and complies with GDPR.
 
 #### Acceptance Criteria
 
-1. WHEN an image is uploaded THEN the system SHALL store it temporarily only for the duration of the matching process
-2. WHEN the matching process is complete THEN the system SHALL automatically delete the uploaded image and generated embeddings
-3. WHEN processing user data THEN the system SHALL not persist any facial embeddings or image data to permanent storage
-4. WHEN errors occur during processing THEN the system SHALL still ensure cleanup of temporary user data
-5. WHEN a user starts a new search THEN the system SHALL clear all previous session data
+1. WHEN an image is uploaded THEN the system SHALL encrypt and store it temporarily only for the duration of the matching process
+2. WHEN the matching process is complete THEN the system SHALL automatically delete the uploaded image and generated embeddings within 24 hours
+3. WHEN processing user data THEN the system SHALL treat face embeddings as PII and encrypt all biometric data at rest
+4. WHEN errors occur during processing THEN the system SHALL still ensure cleanup of temporary user data and log access for audit trails
+5. WHEN a user starts a new search THEN the system SHALL clear all previous session data and provide deletion confirmation
+6. WHEN biometric data is processed THEN the system SHALL log all access for GDPR compliance and audit purposes
 
 ### Requirement 7
 
-**User Story:** As a user, I want the application to handle errors gracefully, so that I have a smooth experience even when issues occur.
+**User Story:** As a user, I want the application to handle errors gracefully and securely, so that I have a smooth experience without exposing sensitive system information.
 
 #### Acceptance Criteria
 
-1. WHEN image upload fails THEN the system SHALL display a clear error message with retry options
-2. WHEN face detection fails THEN the system SHALL provide specific feedback about the issue (e.g., "No face detected", "Image quality too low")
-3. WHEN website fetching fails THEN the system SHALL continue processing other sites and inform the user of partial results
-4. WHEN the backend is unavailable THEN the system SHALL display a user-friendly error message with retry functionality
+1. WHEN image upload fails THEN the system SHALL display a sanitized error message with retry options without exposing internal details
+2. WHEN face detection fails THEN the system SHALL provide specific but safe feedback about the issue (e.g., "No face detected", "Image quality too low")
+3. WHEN website fetching fails THEN the system SHALL continue processing other sites and inform the user of partial results without exposing URLs or internal errors
+4. WHEN the backend is unavailable THEN the system SHALL display a user-friendly error message with retry functionality without revealing server details
 5. WHEN processing takes longer than expected THEN the system SHALL show loading indicators and progress updates
+6. WHEN any error occurs THEN the system SHALL log security events for monitoring while never exposing stack traces or internal paths to users
 
 ### Requirement 8
 
-**User Story:** As an administrator, I want to configure similarity thresholds, so that I can fine-tune the matching accuracy.
+**User Story:** As an administrator, I want to configure similarity thresholds securely, so that I can fine-tune the matching accuracy while maintaining system security.
 
 #### Acceptance Criteria
 
-1. WHEN configuring the system THEN the similarity threshold SHALL be adjustable between 0.1 and 1.0
-2. WHEN the threshold is set THEN the system SHALL use this value to filter matching results
-3. WHEN the threshold is changed THEN the system SHALL apply the new value to subsequent searches
+1. WHEN configuring the system THEN the similarity threshold SHALL be adjustable between 0.1 and 1.0 with proper input validation
+2. WHEN the threshold is set THEN the system SHALL validate the input using Zod schemas and use this value to filter matching results
+3. WHEN the threshold is changed THEN the system SHALL apply the new value to subsequent searches and log the configuration change
 4. IF no threshold is specified THEN the system SHALL use a default value of 0.7
-5. WHEN an invalid threshold is provided THEN the system SHALL use the default value and log a warning
+5. WHEN an invalid threshold is provided THEN the system SHALL reject the input, use the default value, and log a security warning
+6. WHEN threshold changes are made THEN the system SHALL audit log all configuration changes for security monitoring

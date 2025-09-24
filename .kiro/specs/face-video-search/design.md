@@ -413,26 +413,52 @@ interface ErrorResponse {
 
 ## Security Considerations
 
-### Input Validation
+### Input Validation and File Security
 
-- File type validation (JPEG, PNG, WebP only)
-- File size limits (max 10MB)
-- Image dimension validation
-- Malicious file detection
+- **File type validation**: JPEG, PNG, WebP only with MIME type verification
+- **File size limits**: Maximum 10MB to prevent DoS attacks
+- **Image dimension validation**: Reasonable size limits for processing
+- **Malicious file detection**: Scan uploads for security threats
+- **Path validation**: Secure file handling with proper path sanitization
 
-### Data Privacy
+### Biometric Data Protection (GDPR Compliance)
 
-- Automatic cleanup of uploaded images after processing
-- No persistent storage of facial embeddings
-- Session-based temporary data with TTL
-- Secure file handling and path validation
+- **Encryption at rest**: All face embeddings encrypted before storage
+- **Minimal retention**: Face embeddings stored only during processing (max 24 hours)
+- **Automatic cleanup**: Scheduled deletion of biometric data after processing
+- **Access logging**: Complete audit trail of biometric data access
+- **User consent**: Explicit consent required before processing face data
+- **Right to deletion**: Endpoints provided for immediate data deletion
 
-### Rate Limiting
+### API Security
 
-- Upload rate limiting per IP address
-- Processing queue to prevent resource exhaustion
-- Website scraping rate limits to avoid blocking
-- API endpoint throttling
+- **Input validation**: Comprehensive Zod schema validation for all endpoints
+- **Authentication**: Server-side session validation before processing
+- **Rate limiting**: Protection against DoS attacks on face detection endpoints
+- **Error sanitization**: Never expose internal errors, stack traces, or sensitive data
+- **HTTPS enforcement**: All communications encrypted in transit
+
+### Privacy Protection
+
+- **No persistent storage**: Facial embeddings never stored permanently
+- **Session-based data**: Temporary data with automatic TTL expiration
+- **Secure file handling**: Temporary directories with proper cleanup
+- **Data minimization**: Only collect necessary biometric data
+
+### Rate Limiting and Resource Protection
+
+- **Upload rate limiting**: Per IP address to prevent abuse
+- **Processing queue**: Prevent resource exhaustion during peak usage
+- **Website scraping limits**: Respectful rate limits to avoid blocking
+- **API endpoint throttling**: Protect against automated attacks
+- **Concurrent request limits**: Prevent resource exhaustion
+
+### Monitoring and Incident Response
+
+- **Security event logging**: Track failed authentication attempts
+- **Unusual pattern detection**: Monitor abnormal face recognition requests
+- **Resource usage monitoring**: CPU/memory usage during video processing
+- **Audit trails**: Complete logging of biometric data processing activities
 
 ## Performance Optimization
 

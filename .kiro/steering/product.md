@@ -4,11 +4,12 @@ A full-stack application that enables users to search for videos based on facial
 
 ## Core Features
 
-- **Face Detection & Recognition**: Upload images to detect faces and generate embeddings
-- **Video Search**: Search through video content using facial embeddings
+- **Face Detection & Recognition**: Upload images to detect faces and generate embeddings with encryption
+- **Video Search**: Search through video content using facial embeddings with privacy protection
 - **Similarity Matching**: Configurable threshold-based matching with confidence scores
-- **Session Management**: Persistent search sessions with results caching
-- **Multi-site Support**: Fetch and process videos from multiple configured websites
+- **Session Management**: Persistent search sessions with automatic cleanup and data purging
+- **Multi-site Support**: Fetch and process videos from multiple configured websites with URL validation
+- **Privacy Protection**: Biometric data treated as PII with GDPR compliance and automatic deletion
 
 ## Key Use Cases
 
@@ -19,4 +20,4 @@ A full-stack application that enables users to search for videos based on facial
 
 ## Technical Approach
 
-The application uses face-api.js for face detection and recognition, generating numerical embeddings that represent facial features. These embeddings are compared against faces detected in video content to find matches above a specified similarity threshold.
+The application uses face-api.js for face detection and recognition, generating numerical embeddings that represent facial features. These embeddings are encrypted and compared against faces detected in video content to find matches above a specified similarity threshold. All biometric data is automatically deleted after processing to ensure privacy protection and GDPR compliance.

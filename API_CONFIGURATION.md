@@ -10,6 +10,16 @@ The monorepo application uses type-safe oRPC communication with the following pr
 https://faceapp-lhtz.onrender.com
 ```
 
+## Security Configuration
+
+All API endpoints implement comprehensive security measures:
+
+- **Input Validation**: Zod schemas validate all API inputs and outputs
+- **Authentication**: Server-side session validation before processing
+- **Rate Limiting**: Protection against DoS attacks on face detection endpoints
+- **Error Sanitization**: No internal errors or stack traces exposed to clients
+- **File Upload Security**: MIME type validation, size limits, malicious file detection
+
 ## oRPC Configuration
 
 Following the monorepo architecture with type-safe oRPC communication:
@@ -68,6 +78,9 @@ NODE_ENV=production
 PORT=3001
 HOST=0.0.0.0
 FRONTEND_URL=https://your-frontend-domain.com
+# Never commit secrets - use placeholders like <<DB_PASSWORD>>
+DATABASE_URL=<<DATABASE_URL>>
+ENCRYPTION_KEY=<<ENCRYPTION_KEY>>
 ```
 
 ### Frontend (.env.local)
@@ -75,28 +88,36 @@ FRONTEND_URL=https://your-frontend-domain.com
 ```bash
 NEXT_PUBLIC_API_URL=http://localhost:3001/api  # Development only
 NODE_ENV=production  # For production builds
+# Note: NEXT_PUBLIC_ variables are exposed to client - never use for secrets
 ```
 
 ## oRPC API Endpoints
 
-Type-safe oRPC endpoints following the service layer architecture:
+Type-safe oRPC endpoints with comprehensive security measures:
 
 ### Face Processing Router (`/api/face`)
 
 - `processImage` - Process uploaded images for face detection and embedding generation
+- **Security**: File type validation, size limits, malicious file detection
+- **Privacy**: Automatic cleanup of uploaded images and face embeddings
+- **Encryption**: Face embeddings encrypted before temporary storage
 - Type-safe with Zod validation for image data and response types
 - Integrates with faceDetectionService for business logic
 
 ### Video Search Router (`/api/video`)
 
 - `fetchFromSites` - Fetch videos from predefined websites with parallel processing
+- **Security**: URL validation, content filtering, request limits, timeout handling
 - `searchVideos` - Search videos using face embeddings with similarity matching
+- **Privacy**: No persistent storage of search data or embeddings
 - Type-safe with progress tracking and error handling
 
 ### Session Management Router (`/api/session`)
 
 - `createSession` - Create new search session with automatic cleanup
+- **Security**: Session validation, access logging, audit trails
 - `getSession` - Retrieve session data with privacy protection
+- **Privacy**: Automatic deletion after 30 days for GDPR compliance
 - `updateSession` - Update session parameters and results
 - `cleanupSession` - Manual session cleanup and data purging
 
@@ -228,9 +249,19 @@ console.log("API Base URL:", apiConfig.baseUrl)
 console.log("Is Production:", apiConfig.isProduction)
 ```
 
+## Security Headers
+
+All API responses include security headers:
+
+- `Strict-Transport-Security` for HTTPS enforcement
+- `Content-Security-Policy` to prevent XSS attacks
+- `X-Frame-Options` to prevent clickjacking
+- `X-Content-Type-Options` to prevent MIME sniffing
+
 ## Deployment Notes
 
 1. The Railway service URL is hardcoded in the configuration files
-2. No additional environment variables are required for the Railway URL
+2. **Security**: Environment variables use placeholders like `<<SECRET_KEY>>`
 3. The application automatically detects production environment via `NODE_ENV`
 4. CORS is configured to allow the Railway service to make requests to itself
+5. **Monitoring**: Failed auth attempts and unusual face queries are tracked

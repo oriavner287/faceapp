@@ -1,6 +1,6 @@
 # Connection Status Monitoring
 
-This feature provides real-time monitoring of the connection between the frontend and the Railway backend service in production environments.
+This feature provides secure real-time monitoring of the connection between the frontend and the Railway backend service in production environments, with privacy protection and no sensitive data exposure.
 
 ## Features
 
@@ -10,6 +10,8 @@ This feature provides real-time monitoring of the connection between the fronten
 - ✅ **Error handling** - Detailed error messages and retry functionality
 - ✅ **Context-based** - Global state management with React Context
 - ✅ **TypeScript support** - Fully typed components and hooks
+- ✅ **Privacy protection** - No sensitive connection details exposed to client
+- ✅ **Security monitoring** - Failed connection attempts tracked and logged
 
 ## Quick Start
 
@@ -170,20 +172,23 @@ The system automatically detects the environment based on:
 
 ## API Integration
 
-The connection monitoring integrates with your API service:
+The connection monitoring integrates with your API service with security considerations:
 
 ```typescript
 // Health check endpoint
 GET /health
 
-// Response
+// Response (sanitized for client consumption)
 {
   "status": "ok",
   "timestamp": "2024-01-01T00:00:00.000Z",
   "environment": "production",
   "apiBaseUrl": "https://faceapp-lhtz.onrender.com"
+  // Note: No sensitive server information exposed
 }
 ```
+
+**Security**: Health check responses are sanitized to prevent information disclosure. Internal server details are not exposed to clients.
 
 ## Styling
 

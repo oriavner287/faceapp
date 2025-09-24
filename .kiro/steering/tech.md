@@ -10,11 +10,12 @@
 
 - **Runtime**: Node.js 18+ with ESM modules
 - **Framework**: Hono (fast, lightweight web framework)
-- **RPC**: oRPC server for type-safe API endpoints
-- **Validation**: Zod schemas for runtime type validation
+- **RPC**: oRPC server for type-safe API endpoints with input validation
+- **Validation**: Zod schemas for runtime type validation and security
 - **Face Recognition**: face-api.js with Canvas polyfills for Node.js
-- **Image Processing**: Sharp for image manipulation
-- **Web Scraping**: Puppeteer and Cheerio for video fetching
+- **Image Processing**: Sharp for image manipulation with security validation
+- **Web Scraping**: Puppeteer and Cheerio for video fetching with URL validation
+- **Security**: Comprehensive input validation, rate limiting, biometric data encryption
 - **Testing**: Jest with ts-jest for ESM support
 
 ## Frontend Stack
@@ -22,9 +23,10 @@
 - **Framework**: Next.js 15 with App Router
 - **UI Library**: React 19 with TypeScript
 - **Styling**: Tailwind CSS with Tailwind Animate
-- **Components**: Radix UI primitives
+- **Components**: Radix UI primitives with accessibility support
 - **API Client**: oRPC client for type-safe backend communication
-- **File Upload**: React Dropzone
+- **File Upload**: React Dropzone with security validation
+- **Security**: Client-side input validation, no sensitive data exposure
 - **Testing**: Vitest with jsdom environment
 
 ## Development Tools
@@ -90,9 +92,10 @@ npm run start:frontend      # Frontend only
 
 ## Key Dependencies
 
-- **Shared**: TypeScript, Zod validation schemas
-- **Backend**: @orpc/server, hono, face-api.js, sharp, puppeteer
-- **Frontend**: @orpc/client, next, react, tailwindcss, @radix-ui/\*
+- **Shared**: TypeScript, Zod validation schemas for security
+- **Backend**: @orpc/server, hono, face-api.js, sharp, puppeteer (with security configurations)
+- **Frontend**: @orpc/client, next, react, tailwindcss, @radix-ui/\* (with accessibility)
+- **Security**: Input validation, rate limiting, encryption libraries
 
 ## Configuration Files
 
