@@ -11,7 +11,7 @@ import { auditLogger } from "../utils/auditLogger.js"
 export const videoRouter = os.router({
   fetchFromSites: os
     .input(FetchVideosInputSchema)
-    .handler(async ({ input, context }): Promise<FetchVideosOutput> => {
+    .handler(async ({ input }): Promise<FetchVideosOutput> => {
       // Security: Extract IP address for audit logging
       // Note: In oRPC, context doesn't have req property, so we use fallback values
       const ipAddress = "unknown" // Would need to be passed from middleware

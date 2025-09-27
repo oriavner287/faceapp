@@ -1071,3 +1071,699 @@ export async function manualCleanupFile(
     }
   }
 }
+
+// ============================================================================
+// VIDEO SEARCH SERVER ACTIONS
+// ============================================================================
+
+// Zod schemas for video search operations with security validation
+const SearchVideoInputSchema = z.object({
+  embedding: z
+    .array(z.number().refine(n => Number.isFinite(n), "Number must be finite"))
+    .min(1, "Embedding cannot be empty")
+    .max(1000, "Embedding too large")
+    .refine(
+      arr => arr.every(n => Number.isFinite(n)),
+      "All embedding values must be finite"
+    ),
+  threshold: z
+    .number()
+    .min(0.1, "Threshold too low")
+    .max(1.0, "Threshold too high")
+    .refine(val => Number.isFinite(val), "Threshold must be a finite number")
+    .optional()
+    .default(0.7),
+})
+
+const GetSearchResultsInputSchema = z.object({
+  searchId: z
+    .string()
+    .min(8, "Search ID too short")
+    .max(64, "Search ID too long")
+    .regex(/^[a-zA-Z0-9-_]+$/, "Invalid search ID format"),
+})
+
+const UpdateThresholdInputSchema = z.object({
+  searchId: z
+    .string()
+    .min(8, "Search ID too short")
+    .max(64, "Search ID too long")
+    .regex(/^[a-zA-Z0-9-_]+$/, "Invalid search ID format"),
+  threshold: z
+    .number()
+    .min(0.1, "Threshold too low")
+    .max(1.0, "Threshold too high")
+    .refine(val => Number.isFinite(val), "Threshold must be a finite number"),
+})
+
+// Rate limiting for video search operations
+const videoSearchAttempts = new Map<
+  string,
+  { count: number; resetTime: number }
+>()
+const VIDEO_SEARCH_RATE_LIMIT = {
+  windowMs: 60 * 1000, // 1 minute
+  maxRequests: 5, // 5 searches per minute
+}
+
+// Check rate limit for video search operations
+function checkVideoSearchRateLimit(clientIP: string): {
+  allowed: boolean
+  resetTime?: number
+} {
+  const now = Date.now()
+  const clientData = videoSearchAttempts.get(clientIP)
+
+  if (!clientData || now > clientData.resetTime) {
+    // Reset or initialize rate limit window
+    videoSearchAttempts.set(clientIP, {
+      count: 1,
+      resetTime: now + VIDEO_SEARCH_RATE_LIMIT.windowMs,
+    })
+    return { allowed: true }
+  }
+
+  if (clientData.count >= VIDEO_SEARCH_RATE_LIMIT.maxRequests) {
+    logSecurityEvent(
+      "VIDEO_SEARCH_RATE_LIMIT_EXCEEDED",
+      { clientIP, attempts: clientData.count },
+      clientIP,
+      "high"
+    )
+    return { allowed: false, resetTime: clientData.resetTime }
+  }
+
+  // Increment counter
+  clientData.count++
+  return { allowed: true }
+}
+
+// Types for video search responses
+export interface VideoMatch {
+  id: string
+  title: string
+  thumbnailUrl: string
+  videoUrl: string
+  sourceWebsite: string
+  similarityScore: number
+  detectedFaces: Array<{
+    boundingBox: {
+      x: number
+      y: number
+      width: number
+      height: number
+    }
+    embedding: number[]
+    confidence: number
+  }>
+}
+
+export interface VideoSearchResult {
+  success: boolean
+  data?: {
+    results: VideoMatch[]
+    processedSites: string[]
+    searchId?: string
+    progress: number
+    status: "processing" | "completed" | "error"
+  }
+  error?: {
+    code: string
+    message: string
+    details?: any
+  }
+}
+
+export interface SearchResultsResponse {
+  success: boolean
+  data?: {
+    results: VideoMatch[]
+    status: "processing" | "completed" | "error"
+    progress: number
+  }
+  error?: {
+    code: string
+    message: string
+  }
+}
+
+export interface ThresholdUpdateResult {
+  success: boolean
+  data?: {
+    updatedResults: VideoMatch[]
+    newThreshold: number
+  }
+  error?: {
+    code: string
+    message: string
+  }
+}
+
+/**
+ * Server action for video search with parallel processing of websites
+ * Implements comprehensive security validation and rate limiting
+ */
+export async function searchVideos(
+  embedding: number[],
+  threshold: number = 0.7
+): Promise<VideoSearchResult> {
+  let clientIP = "unknown"
+
+  try {
+    // Get client IP for rate limiting and logging
+    try {
+      const headersList = await headers()
+      clientIP =
+        headersList.get("x-forwarded-for")?.split(",")[0] ||
+        headersList.get("x-real-ip") ||
+        "unknown"
+    } catch (error) {
+      clientIP = "test-environment"
+    }
+
+    // Security: Rate limiting for video search operations
+    const rateLimitCheck = checkVideoSearchRateLimit(clientIP)
+    if (!rateLimitCheck.allowed) {
+      const resetTime = rateLimitCheck.resetTime
+        ? new Date(rateLimitCheck.resetTime)
+        : new Date()
+      return {
+        success: false,
+        error: {
+          code: "RATE_LIMIT_EXCEEDED",
+          message: `Too many video search requests. Please try again after ${resetTime.toLocaleTimeString()}.`,
+        },
+      }
+    }
+
+    // Security: Comprehensive input validation using Zod
+    const validationResult = SearchVideoInputSchema.safeParse({
+      embedding,
+      threshold,
+    })
+
+    if (!validationResult.success) {
+      logSecurityEvent(
+        "INVALID_VIDEO_SEARCH_INPUT",
+        {
+          zodError: validationResult.error.issues,
+          embeddingLength: embedding?.length || 0,
+          threshold,
+        },
+        clientIP,
+        "medium"
+      )
+      return {
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message:
+            validationResult.error.issues?.[0]?.message ||
+            "Invalid input parameters",
+          details: validationResult.error,
+        },
+      }
+    }
+
+    const validatedInput = validationResult.data
+
+    // Security: Log video search operation for audit trail
+    logSecurityEvent(
+      "VIDEO_SEARCH_INITIATED",
+      {
+        embeddingLength: validatedInput.embedding.length,
+        threshold: validatedInput.threshold,
+        operation: "parallel_website_processing",
+      },
+      clientIP,
+      "low"
+    )
+
+    // Call backend video fetching service directly via HTTP
+    const { apiConfig } = await import("./api-config")
+    const videoSearchUrl = `${apiConfig.baseUrl}/video.fetchFromSites`
+
+    const videoSearchResult = await fetch(videoSearchUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        embedding: validatedInput.embedding,
+        threshold: validatedInput.threshold,
+      }),
+    }).then(async response => {
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      return response.json()
+    })
+
+    if (!videoSearchResult) {
+      logSecurityEvent(
+        "VIDEO_SEARCH_NO_RESPONSE",
+        { backendUrl: apiConfig.baseUrl },
+        clientIP,
+        "medium"
+      )
+      return {
+        success: false,
+        error: {
+          code: "NO_RESPONSE",
+          message: "No response from video search service",
+        },
+      }
+    }
+
+    // Process and validate backend response
+    const results = videoSearchResult.results || []
+    const processedSites = videoSearchResult.processedSites || []
+    const errors = videoSearchResult.errors || []
+
+    // Security: Sanitize video URLs before returning to client
+    const sanitizedResults = results.map((video: any) => ({
+      id: String(video.id || "").substring(0, 100), // Limit ID length
+      title: String(video.title || "Untitled").substring(0, 200), // Limit title length
+      thumbnailUrl: sanitizeUrl(video.thumbnailUrl),
+      videoUrl: sanitizeUrl(video.videoUrl),
+      sourceWebsite: String(video.sourceWebsite || "Unknown").substring(0, 100),
+      similarityScore: Math.round((video.similarityScore || 0) * 100) / 100, // Round to 2 decimal places
+      detectedFaces: (video.detectedFaces || []).map((face: any) => ({
+        boundingBox: {
+          x: Math.max(0, Math.min(2048, Math.round(face.boundingBox?.x || 0))),
+          y: Math.max(0, Math.min(2048, Math.round(face.boundingBox?.y || 0))),
+          width: Math.max(
+            1,
+            Math.min(2048, Math.round(face.boundingBox?.width || 1))
+          ),
+          height: Math.max(
+            1,
+            Math.min(2048, Math.round(face.boundingBox?.height || 1))
+          ),
+        },
+        embedding: [], // Security: Never expose raw embeddings to client
+        confidence: Math.round((face.confidence || 0) * 100) / 100,
+      })),
+    }))
+
+    // Log successful video search completion
+    logSecurityEvent(
+      "VIDEO_SEARCH_COMPLETED",
+      {
+        resultsCount: sanitizedResults.length,
+        processedSitesCount: processedSites.length,
+        errorsCount: errors.length,
+        hasErrors: errors.length > 0,
+      },
+      clientIP,
+      "low"
+    )
+
+    return {
+      success: true,
+      data: {
+        results: sanitizedResults,
+        processedSites,
+        progress: 100,
+        status: "completed" as const,
+      },
+    }
+  } catch (error) {
+    // Security: Log video search errors for monitoring
+    logSecurityEvent(
+      "VIDEO_SEARCH_ERROR",
+      {
+        error: error instanceof Error ? error.message : "Unknown error",
+        errorType:
+          error instanceof Error ? error.constructor.name : "UnknownError",
+        embeddingLength: embedding?.length || 0,
+        threshold,
+      },
+      clientIP,
+      "high"
+    )
+
+    // Return sanitized error message (never expose internal details)
+    return {
+      success: false,
+      error: {
+        code: "SEARCH_ERROR",
+        message:
+          "Unable to complete video search. Please try again with different parameters.",
+      },
+    }
+  }
+}
+
+/**
+ * Server action for retrieving search results using oRPC type-safe contracts
+ */
+export async function getSearchResults(
+  searchId: string
+): Promise<SearchResultsResponse> {
+  let clientIP = "unknown"
+
+  try {
+    // Get client IP for logging
+    try {
+      const headersList = await headers()
+      clientIP =
+        headersList.get("x-forwarded-for")?.split(",")[0] ||
+        headersList.get("x-real-ip") ||
+        "unknown"
+    } catch (error) {
+      clientIP = "test-environment"
+    }
+
+    // Security: Validate search ID using Zod
+    const validationResult = GetSearchResultsInputSchema.safeParse({ searchId })
+
+    if (!validationResult.success) {
+      logSecurityEvent(
+        "INVALID_SEARCH_ID",
+        {
+          searchId: searchId?.substring(0, 20) || "undefined", // Limit logged ID length
+          zodError: validationResult.error.issues,
+        },
+        clientIP,
+        "medium"
+      )
+      return {
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message:
+            validationResult.error.issues?.[0]?.message ||
+            "Invalid search ID format",
+        },
+      }
+    }
+
+    const validatedSearchId = validationResult.data.searchId
+
+    // Call backend search service directly via HTTP
+    const { apiConfig } = await import("./api-config")
+    const searchUrl = `${apiConfig.baseUrl}/search.getResults`
+
+    const searchResult = await fetch(searchUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        searchId: validatedSearchId,
+      }),
+    }).then(async response => {
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      return response.json()
+    })
+
+    if (!searchResult) {
+      return {
+        success: false,
+        error: {
+          code: "NO_RESPONSE",
+          message: "No response from search service",
+        },
+      }
+    }
+
+    // Security: Sanitize results before returning
+    const sanitizedResults = (searchResult.results || []).map((video: any) => ({
+      id: String(video.id || "").substring(0, 100),
+      title: String(video.title || "Untitled").substring(0, 200),
+      thumbnailUrl: sanitizeUrl(video.thumbnailUrl),
+      videoUrl: sanitizeUrl(video.videoUrl),
+      sourceWebsite: String(video.sourceWebsite || "Unknown").substring(0, 100),
+      similarityScore: Math.round((video.similarityScore || 0) * 100) / 100,
+      detectedFaces: (video.detectedFaces || []).map((face: any) => ({
+        boundingBox: {
+          x: Math.max(0, Math.min(2048, Math.round(face.boundingBox?.x || 0))),
+          y: Math.max(0, Math.min(2048, Math.round(face.boundingBox?.y || 0))),
+          width: Math.max(
+            1,
+            Math.min(2048, Math.round(face.boundingBox?.width || 1))
+          ),
+          height: Math.max(
+            1,
+            Math.min(2048, Math.round(face.boundingBox?.height || 1))
+          ),
+        },
+        embedding: [], // Security: Never expose embeddings
+        confidence: Math.round((face.confidence || 0) * 100) / 100,
+      })),
+    }))
+
+    return {
+      success: true,
+      data: {
+        results: sanitizedResults,
+        status: searchResult.status || "completed",
+        progress: searchResult.progress || 100,
+      },
+    }
+  } catch (error) {
+    logSecurityEvent(
+      "GET_SEARCH_RESULTS_ERROR",
+      {
+        searchId: searchId?.substring(0, 20) || "undefined",
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+      clientIP,
+      "medium"
+    )
+
+    return {
+      success: false,
+      error: {
+        code: "RETRIEVAL_ERROR",
+        message: "Unable to retrieve search results. Please try again.",
+      },
+    }
+  }
+}
+
+/**
+ * Server action for threshold adjustment and result filtering with comprehensive validation
+ */
+export async function updateSearchThreshold(
+  searchId: string,
+  threshold: number
+): Promise<ThresholdUpdateResult> {
+  let clientIP = "unknown"
+
+  try {
+    // Get client IP for logging
+    try {
+      const headersList = await headers()
+      clientIP =
+        headersList.get("x-forwarded-for")?.split(",")[0] ||
+        headersList.get("x-real-ip") ||
+        "unknown"
+    } catch (error) {
+      clientIP = "test-environment"
+    }
+
+    // Security: Comprehensive input validation using Zod
+    const validationResult = UpdateThresholdInputSchema.safeParse({
+      searchId,
+      threshold,
+    })
+
+    if (!validationResult.success) {
+      logSecurityEvent(
+        "INVALID_THRESHOLD_UPDATE_INPUT",
+        {
+          searchId: searchId?.substring(0, 20) || "undefined",
+          threshold,
+          zodError: validationResult.error.issues,
+        },
+        clientIP,
+        "medium"
+      )
+      return {
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message:
+            validationResult.error.issues?.[0]?.message ||
+            "Invalid input parameters",
+        },
+      }
+    }
+
+    const validatedInput = validationResult.data
+
+    // Security: Log threshold update operation for audit trail
+    logSecurityEvent(
+      "THRESHOLD_UPDATE_INITIATED",
+      {
+        searchId: validatedInput.searchId.substring(0, 20),
+        oldThreshold: "unknown", // Would need to fetch current threshold
+        newThreshold: validatedInput.threshold,
+      },
+      clientIP,
+      "low"
+    )
+
+    // Call backend search configuration service directly via HTTP
+    const { apiConfig } = await import("./api-config")
+    const configUrl = `${apiConfig.baseUrl}/search.configure`
+
+    const configResult = await fetch(configUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        searchId: validatedInput.searchId,
+        threshold: validatedInput.threshold,
+      }),
+    }).then(async response => {
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      return response.json()
+    })
+
+    if (!configResult || !configResult.success) {
+      return {
+        success: false,
+        error: {
+          code: "UPDATE_FAILED",
+          message: "Failed to update search threshold. Please try again.",
+        },
+      }
+    }
+
+    // Security: Sanitize updated results
+    const sanitizedResults = (configResult.updatedResults || []).map(
+      (video: any) => ({
+        id: String(video.id || "").substring(0, 100),
+        title: String(video.title || "Untitled").substring(0, 200),
+        thumbnailUrl: sanitizeUrl(video.thumbnailUrl),
+        videoUrl: sanitizeUrl(video.videoUrl),
+        sourceWebsite: String(video.sourceWebsite || "Unknown").substring(
+          0,
+          100
+        ),
+        similarityScore: Math.round((video.similarityScore || 0) * 100) / 100,
+        detectedFaces: (video.detectedFaces || []).map((face: any) => ({
+          boundingBox: {
+            x: Math.max(
+              0,
+              Math.min(2048, Math.round(face.boundingBox?.x || 0))
+            ),
+            y: Math.max(
+              0,
+              Math.min(2048, Math.round(face.boundingBox?.y || 0))
+            ),
+            width: Math.max(
+              1,
+              Math.min(2048, Math.round(face.boundingBox?.width || 1))
+            ),
+            height: Math.max(
+              1,
+              Math.min(2048, Math.round(face.boundingBox?.height || 1))
+            ),
+          },
+          embedding: [], // Security: Never expose embeddings
+          confidence: Math.round((face.confidence || 0) * 100) / 100,
+        })),
+      })
+    )
+
+    // Log successful threshold update
+    logSecurityEvent(
+      "THRESHOLD_UPDATE_COMPLETED",
+      {
+        searchId: validatedInput.searchId.substring(0, 20),
+        newThreshold: validatedInput.threshold,
+        updatedResultsCount: sanitizedResults.length,
+      },
+      clientIP,
+      "low"
+    )
+
+    return {
+      success: true,
+      data: {
+        updatedResults: sanitizedResults,
+        newThreshold: validatedInput.threshold,
+      },
+    }
+  } catch (error) {
+    logSecurityEvent(
+      "THRESHOLD_UPDATE_ERROR",
+      {
+        searchId: searchId?.substring(0, 20) || "undefined",
+        threshold,
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+      clientIP,
+      "high"
+    )
+
+    return {
+      success: false,
+      error: {
+        code: "UPDATE_ERROR",
+        message: "Unable to update search threshold. Please try again.",
+      },
+    }
+  }
+}
+
+/**
+ * Security helper function to sanitize URLs
+ */
+function sanitizeUrl(url: string): string {
+  try {
+    if (!url || typeof url !== "string") {
+      return ""
+    }
+
+    // Basic URL validation
+    const parsedUrl = new URL(url)
+
+    // Only allow HTTPS URLs for security
+    if (parsedUrl.protocol !== "https:") {
+      return ""
+    }
+
+    // Validate against allowed domains (whitelist approach)
+    const allowedDomains = [
+      "example.com",
+      "test.example.com",
+      "cdn.example.com",
+    ]
+    const isAllowedDomain = allowedDomains.some(
+      domain =>
+        parsedUrl.hostname === domain ||
+        parsedUrl.hostname.endsWith(`.${domain}`)
+    )
+
+    if (!isAllowedDomain) {
+      return ""
+    }
+
+    // Remove potentially dangerous query parameters
+    const dangerousParams = [
+      "callback",
+      "jsonp",
+      "redirect",
+      "return_to",
+      "continue",
+    ]
+    dangerousParams.forEach(param => {
+      parsedUrl.searchParams.delete(param)
+    })
+
+    return parsedUrl.toString()
+  } catch (error) {
+    // Invalid URL format
+    return ""
+  }
+}

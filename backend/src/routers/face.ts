@@ -68,7 +68,7 @@ function validateImageMagicNumbers(buffer: Buffer): boolean {
 export const faceRouter = os.router({
   processImage: os
     .input(ProcessImageInputSchema)
-    .handler(async ({ input, context }): Promise<ProcessImageOutput> => {
+    .handler(async ({ input }): Promise<ProcessImageOutput> => {
       const startTime = Date.now()
       let sessionId: string | null = null
 
