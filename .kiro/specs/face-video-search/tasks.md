@@ -175,7 +175,7 @@
   - _Requirements: 3.1, 4.3, 5.2, 8.3, 8.6_
   - _Steering: Follow backend-expert.md for service layer patterns, security-expert.md for input validation, tech.md for oRPC integration_
 
-- [ ] 11. Create secure image upload React component with comprehensive validation
+- [x] 11. Create secure image upload React component with comprehensive validation
 
   - Build ImageUpload component using function declarations (not arrow functions) following frontend-expert.md patterns
   - **Security**: Implement client-side file validation (MIME type, size limits, format verification) before upload
