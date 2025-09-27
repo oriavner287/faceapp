@@ -6,3 +6,4 @@ export * from "./EnvironmentBadge"
 
 // Face recognition components
 export * from "./ImageUpload"
+export { default as SearchResults } from "./SearchResults"

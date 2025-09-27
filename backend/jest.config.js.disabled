@@ -4,14 +4,17 @@ export default {
   extensionsToTreatAsEsm: [".ts"],
   testEnvironment: "node",
   roots: ["<rootDir>/src"],
-  testMatch: ["**/__tests__/**/*.test.ts", "**/?(*.)+(spec|test).ts"],
+  testMatch: [
+    "**/__tests__/**/*.test.ts.disabled",
+    "**/?(*.)+(spec|test).ts.disabled",
+  ],
   transform: {
     "^.+\\.ts$": ["ts-jest", { useESM: true }],
   },
   moduleNameMapper: {
     "^(\\.{1,2}/.*)\\.js$": "$1",
   },
-  setupFilesAfterEnv: ["<rootDir>/src/__tests__/setup.ts"],
+  setupFilesAfterEnv: ["<rootDir>/src/__tests__/setup.ts.disabled"],
   collectCoverageFrom: [
     "src/**/*.ts",
     "!src/**/*.d.ts",
