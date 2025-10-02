@@ -7,3 +7,8 @@ export * from "./EnvironmentBadge"
 // Face recognition components
 export * from "./ImageUpload"
 export { default as SearchResults } from "./SearchResults"
+
+// Loading and error handling components
+export * from "./LoadingSpinner"
+export * from "./ErrorDisplay"
+export * from "./FaceSearchErrorBoundary"
