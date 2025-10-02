@@ -1,26 +1,19 @@
 "use client"
 
 import React, { useState, useCallback, useEffect } from "react"
-
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-
+import { Separator } from "@/components/ui/separator"
 import {
-  ProductionConnectionIndicator,
-  ConnectionBanner,
-  ProductionConnectionDot,
-  ConnectionDebug,
-  EnvironmentBadge,
-} from "../components"
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { ImageUpload } from "@/components/ImageUpload"
 import SearchResults from "@/components/SearchResults"
 import { LoadingSpinner } from "@/components/LoadingSpinner"
@@ -54,6 +47,146 @@ type VideoMatch = NonNullable<VideoSearchResult["data"]>["results"][0] & {
   faceCount: number
 }
 
+// Connection status indicator component with dialog
+function ConnectionIndicator({
+  sessionId,
+  searchPhase,
+}: {
+  sessionId: string | undefined
+  searchPhase: string
+}) {
+  const [isConnected, setIsConnected] = useState(true)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [backendUrl, setBackendUrl] = useState("")
+
+  useEffect(() => {
+    const url =
+      process.env.NEXT_PUBLIC_API_URL || "https://faceapp-lhtz.onrender.com"
+    setBackendUrl(url)
+
+    // Check backend connection
+    const checkConnection = async () => {
+      try {
+        const response = await fetch(url, { method: "HEAD" })
+        setIsConnected(response.ok)
+      } catch {
+        setIsConnected(false)
+      }
+    }
+
+    checkConnection()
+    const interval = setInterval(checkConnection, 30000) // Check every 30s
+
+    return () => clearInterval(interval)
+  }, [])
+
+  return (
+    <>
+      <div
+        className="fixed bottom-6 right-6 z-50 group cursor-pointer"
+        onClick={() => setIsDialogOpen(true)}
+        title="Click for connection details"
+      >
+        <div
+          className={`
+          w-3 h-3 rounded-full transition-all duration-300
+          ${isConnected ? "bg-green-500" : "bg-red-500"}
+          shadow-lg
+          group-hover:scale-125
+        `}
+        >
+          <div
+            className={`
+            absolute inset-0 rounded-full animate-ping
+            ${isConnected ? "bg-green-400" : "bg-red-400"}
+            opacity-75
+          `}
+          />
+        </div>
+      </div>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Connection Status</DialogTitle>
+            <DialogDescription>
+              Backend connection and development information
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Connection Status */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
+              <span className="text-sm font-medium">Backend Status</span>
+              <div className="flex items-center space-x-2">
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    isConnected ? "bg-green-500" : "bg-red-500"
+                  }`}
+                />
+                <span
+                  className={`text-sm font-semibold ${
+                    isConnected ? "text-green-600" : "text-red-600"
+                  }`}
+                >
+                  {isConnected ? "Connected" : "Disconnected"}
+                </span>
+              </div>
+            </div>
+
+            {/* Backend URL */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">
+                Backend API
+              </label>
+              <code className="block p-2 text-xs bg-gray-100 rounded border break-all">
+                {backendUrl}
+              </code>
+            </div>
+
+            {/* Session ID */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">
+                Session ID
+              </label>
+              <code className="block p-2 text-xs bg-gray-100 rounded border break-all">
+                {sessionId || "None"}
+              </code>
+            </div>
+
+            {/* Search Phase */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">
+                Search Phase
+              </label>
+              <div className="p-2 text-xs bg-gray-100 rounded border">
+                <Badge variant="secondary">{searchPhase}</Badge>
+              </div>
+            </div>
+
+            {/* Environment */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">
+                Environment
+              </label>
+              <div className="p-2 text-xs bg-gray-100 rounded border">
+                <Badge
+                  variant={
+                    process.env.NODE_ENV === "development"
+                      ? "default"
+                      : "secondary"
+                  }
+                >
+                  {process.env.NODE_ENV || "production"}
+                </Badge>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
 // Search progress component
 function SearchProgress({
   phase,
@@ -81,43 +214,72 @@ function SearchProgress({
     }
   }
 
+  const getPhaseIcon = () => {
+    switch (phase) {
+      case "uploading":
+        return "📤"
+      case "detecting":
+        return "🔍"
+      case "searching":
+        return "🎬"
+      case "completed":
+        return "✅"
+      case "error":
+        return "❌"
+      default:
+        return "⏳"
+    }
+  }
+
   if (phase === "idle") {
     return null
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Search Progress</CardTitle>
-        <CardDescription>{getPhaseDescription()}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm">
-            <span>Progress</span>
-            <span>{progress}%</span>
+    <Card className="border-none shadow-sm">
+      <CardContent className="pt-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <span className="text-2xl">{getPhaseIcon()}</span>
+            <div>
+              <p className="font-medium text-sm">{getPhaseDescription()}</p>
+              {currentStep && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {currentStep}
+                </p>
+              )}
+            </div>
           </div>
-          <Progress value={progress} className="h-2" />
-        </div>
-
-        {currentStep && (
-          <div className="text-sm text-muted-foreground">
-            Current step: {currentStep}
-          </div>
-        )}
-
-        <div className="flex items-center space-x-2">
-          <Badge variant={phase === "completed" ? "default" : "secondary"}>
+          <Badge
+            variant={
+              phase === "completed"
+                ? "default"
+                : phase === "error"
+                ? "destructive"
+                : "secondary"
+            }
+          >
             {phase === "error"
               ? "Failed"
               : phase === "completed"
               ? "Complete"
               : "Processing"}
           </Badge>
-          {phase !== "completed" && phase !== "error" && (
-            <LoadingSpinner size="sm" />
-          )}
         </div>
+
+        <div className="space-y-2">
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>Progress</span>
+            <span>{progress}%</span>
+          </div>
+          <Progress value={progress} className="h-1.5" />
+        </div>
+
+        {phase !== "completed" && phase !== "error" && (
+          <div className="flex justify-center">
+            <LoadingSpinner size="sm" />
+          </div>
+        )}
       </CardContent>
     </Card>
   )
@@ -322,155 +484,130 @@ export default function Home() {
 
   return (
     <>
-      {/* Connection status banner for critical issues */}
-      <ConnectionBanner />
-
-      <main className="min-h-screen bg-gray-50 py-8">
-        {/* Header with connection status */}
-        <div className="absolute top-4 right-4 flex items-center space-x-2">
-          <EnvironmentBadge />
-          <ProductionConnectionDot />
+      <main className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+        {/* Header */}
+        <div className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-40">
+          <div className="max-w-4xl mx-auto px-4 py-6">
+            <div className="text-center space-y-2">
+              <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+                Face Video Search
+              </h1>
+              <p className="text-sm text-muted-foreground max-w-2xl mx-auto">
+                Upload a photo to find similar faces in videos using advanced
+                face recognition technology
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div className="max-w-6xl mx-auto px-4 space-y-8">
-          {/* Page header */}
-          <div className="text-center space-y-4">
-            <h1 className="text-4xl font-bold text-gray-900">
-              Face Video Search
-            </h1>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Upload a photo to find similar faces in videos using advanced face
-              recognition technology
-            </p>
-          </div>
+        {/* Main content */}
+        <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+          {/* Image upload section */}
+          <ImageUpload
+            onUploadSuccess={handleUploadSuccess}
+            onUploadError={handleUploadError}
+          />
 
-          {/* Main content area */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Left column - Upload and controls */}
-            <div className="space-y-6">
-              {/* Image upload component */}
-              <ImageUpload
-                onUploadSuccess={handleUploadSuccess}
-                onUploadError={handleUploadError}
+          {/* Search progress */}
+          <SearchProgress
+            phase={searchState.phase}
+            progress={searchState.progress}
+            currentStep={searchState.currentStep}
+          />
+
+          {/* Error display */}
+          {searchState.error && (
+            <Alert variant="destructive" className="border-none shadow-sm">
+              <AlertTitle>Search Error</AlertTitle>
+              <AlertDescription>{searchState.error}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* New search button */}
+          {(searchState.phase === "completed" ||
+            searchState.phase === "error") && (
+            <div className="flex justify-center">
+              <Button
+                onClick={handleNewSearch}
+                variant="outline"
+                size="lg"
+                className="min-w-[200px]"
+              >
+                Start New Search
+              </Button>
+            </div>
+          )}
+
+          {/* Separator before results */}
+          {searchState.phase === "completed" &&
+            searchState.searchResults.length > 0 && (
+              <div className="py-4">
+                <Separator />
+              </div>
+            )}
+
+          {/* Search results section */}
+          {searchState.phase === "completed" &&
+          searchState.searchResults.length > 0 ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold">
+                  Search Results ({searchState.searchResults.length})
+                </h2>
+              </div>
+              <SearchResults
+                results={searchState.searchResults}
+                isLoading={false}
+                error={null}
+                onThresholdChange={handleThresholdChange}
+                currentThreshold={similarityThreshold}
               />
-
-              {/* Search progress */}
-              <SearchProgress
-                phase={searchState.phase}
-                progress={searchState.progress}
-                currentStep={searchState.currentStep}
-              />
-
-              {/* Error display */}
-              {searchState.error && (
-                <Alert variant="destructive">
-                  <AlertTitle>Search Error</AlertTitle>
-                  <AlertDescription>{searchState.error}</AlertDescription>
-                </Alert>
-              )}
-
-              {/* New search button */}
-              {(searchState.phase === "completed" ||
-                searchState.phase === "error") && (
-                <Card>
-                  <CardContent className="pt-6">
-                    <Button
-                      onClick={handleNewSearch}
-                      className="w-full"
-                      variant="outline"
-                    >
-                      Start New Search
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Debug info in development */}
-              {process.env.NODE_ENV === "development" && (
-                <div className="space-y-4">
-                  <div className="border-t border-gray-200" />
-                  <ConnectionDebug />
-
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
-                    <h4 className="font-semibold text-blue-800 mb-2">
-                      Development Info
-                    </h4>
-                    <p className="text-blue-700">
-                      Backend API:{" "}
-                      <code className="bg-blue-100 px-1 rounded">
-                        https://faceapp-lhtz.onrender.com
-                      </code>
-                    </p>
-                    <p className="text-blue-700 mt-1">
-                      Session ID: {currentSession?.id || "None"}
-                    </p>
-                    <p className="text-blue-700">
-                      Search Phase: {searchState.phase}
-                    </p>
-                  </div>
+            </div>
+          ) : searchState.phase === "completed" &&
+            searchState.searchResults.length === 0 ? (
+            <Card className="border-none shadow-sm">
+              <CardContent className="p-12 text-center">
+                <div className="text-6xl mb-4">🔍</div>
+                <h3 className="text-lg font-semibold mb-2">
+                  No Similar Faces Found
+                </h3>
+                <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+                  We couldn't find any videos with faces similar to your
+                  uploaded image.
+                </p>
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <p className="font-medium">Try:</p>
+                  <ul className="space-y-1">
+                    <li>• Uploading a clearer image with better lighting</li>
+                    <li>• Using a photo where the face is more visible</li>
+                    <li>• Lowering the similarity threshold</li>
+                  </ul>
                 </div>
-              )}
-            </div>
-
-            {/* Right column - Search results */}
-            <div className="space-y-6">
-              {searchState.phase === "completed" &&
-              searchState.searchResults.length > 0 ? (
-                <SearchResults
-                  results={searchState.searchResults}
-                  isLoading={false}
-                  error={null}
-                  onThresholdChange={handleThresholdChange}
-                  currentThreshold={similarityThreshold}
-                />
-              ) : searchState.phase === "completed" &&
-                searchState.searchResults.length === 0 ? (
-                <Card>
-                  <CardContent className="p-8 text-center">
-                    <h3 className="text-lg font-semibold mb-2">
-                      No Similar Faces Found
-                    </h3>
-                    <p className="text-muted-foreground mb-4">
-                      We couldn't find any videos with faces similar to your
-                      uploaded image.
-                    </p>
-                    <div className="space-y-2 text-sm text-muted-foreground">
-                      <p>Try:</p>
-                      <ul className="list-disc list-inside space-y-1">
-                        <li>Uploading a clearer image with better lighting</li>
-                        <li>Using a photo where the face is more visible</li>
-                        <li>Lowering the similarity threshold</li>
-                      </ul>
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card>
-                  <CardContent className="p-8 text-center">
-                    <div className="text-6xl mb-4">🔍</div>
-                    <h3 className="text-lg font-semibold mb-2">
-                      Ready to Search
-                    </h3>
-                    <p className="text-muted-foreground">
-                      Upload an image to start searching for similar faces in
-                      videos
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          </div>
+              </CardContent>
+            </Card>
+          ) : searchState.phase === "idle" ? (
+            <Card className="border-none shadow-sm bg-gradient-to-br from-blue-50 to-indigo-50">
+              <CardContent className="p-12 text-center">
+                <div className="text-6xl mb-4">🎬</div>
+                <h3 className="text-lg font-semibold mb-2">Ready to Search</h3>
+                <p className="text-muted-foreground">
+                  Upload an image above to start searching for similar faces in
+                  videos
+                </p>
+              </CardContent>
+            </Card>
+          ) : null}
 
           {/* Privacy notice */}
-          <Card className="bg-green-50 border-green-200">
+          <Card className="border-green-200 bg-green-50/50">
             <CardContent className="p-6">
               <div className="flex items-start space-x-3">
-                <div className="text-green-600 text-xl">🔒</div>
+                <div className="text-green-600 text-xl flex-shrink-0">🔒</div>
                 <div className="space-y-2">
-                  <h4 className="font-semibold text-green-800">
+                  <h4 className="font-semibold text-green-800 text-sm">
                     Privacy & Security
                   </h4>
-                  <div className="text-sm text-green-700 space-y-1">
+                  <div className="text-xs text-green-700 space-y-1">
                     <p>
                       • Your images are processed securely and automatically
                       deleted after 1 hour
@@ -492,10 +629,10 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Floating connection status indicator */}
-      <ProductionConnectionIndicator
-        position="top-left"
-        showInDevelopment={true}
+      {/* Fixed connection status indicator with dialog */}
+      <ConnectionIndicator
+        sessionId={currentSession?.id}
+        searchPhase={searchState.phase}
       />
     </>
   )
