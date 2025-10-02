@@ -67,10 +67,12 @@ const nextConfig = {
       },
     ]
   },
-  // Experimental features for security
-  experimental: {
-    serverComponentsExternalPackages: ["sharp", "canvas"],
-  },
+  // Server external packages for security
+  serverExternalPackages: ["sharp", "canvas"],
+
+  // Output configuration for monorepo
+  output: "standalone",
+  outputFileTracingRoot: require("path").join(__dirname, "../"),
   // TypeScript configuration for build
   typescript: {
     // Dangerously allow production builds to successfully complete even if

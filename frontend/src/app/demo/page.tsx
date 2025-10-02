@@ -1,3 +1,5 @@
+"use client"
+
 import { SearchResults } from "@/components"
 
 // Mock data for demonstration

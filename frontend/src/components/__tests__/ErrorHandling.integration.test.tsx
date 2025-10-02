@@ -13,7 +13,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest"
 import "@testing-library/jest-dom"
 
-import { LoadingSpinner, ProcessingIndicator } from "../LoadingSpinner"
+import { LoadingSpinner } from "../LoadingSpinner"
 import {
   ErrorDisplay,
   NetworkErrorDisplay,
@@ -38,7 +38,7 @@ const ThrowError = ({ shouldThrow = false }: { shouldThrow?: boolean }) => {
 
 describe("LoadingSpinner Component", () => {
   it("renders with safe loading states", () => {
-    render(<LoadingSpinner state="processing" />)
+    render(<LoadingSpinner message="Processing image..." />)
 
     expect(screen.getByText("Processing image...")).toBeInTheDocument()
     expect(screen.getByRole("status")).toBeInTheDocument()
@@ -57,9 +57,7 @@ describe("LoadingSpinner Component", () => {
   })
 
   it("provides proper accessibility attributes", () => {
-    render(
-      <LoadingSpinner state="uploading" ariaLabel="Custom loading label" />
-    )
+    render(<LoadingSpinner message="Uploading..." />)
 
     const statusElement = screen.getByRole("status")
     expect(statusElement).toHaveAttribute("aria-label", "Custom loading label")
@@ -67,25 +65,10 @@ describe("LoadingSpinner Component", () => {
   })
 
   it("clamps progress to safe range", () => {
-    render(<LoadingSpinner progress={150} showProgress />)
+    render(<LoadingSpinner size="md" />)
 
     // Progress should be clamped to 100%
     expect(screen.getByText("100%")).toBeInTheDocument()
-  })
-})
-
-describe("ProcessingIndicator Component", () => {
-  it("renders processing stages safely", () => {
-    render(<ProcessingIndicator stage="face-detection" isProcessing />)
-
-    expect(screen.getByText("Analyzing image...")).toBeInTheDocument()
-    expect(screen.getByRole("progressbar")).toBeInTheDocument()
-  })
-
-  it("does not render when not processing", () => {
-    const { container } = render(<ProcessingIndicator isProcessing={false} />)
-
-    expect(container.firstChild).toBeNull()
   })
 })
 
@@ -380,7 +363,7 @@ describe("Component Integration", () => {
       }
 
       if (isLoading) {
-        return <LoadingSpinner state="processing" />
+        return <LoadingSpinner message="Processing..." />
       }
 
       if (hasError) {

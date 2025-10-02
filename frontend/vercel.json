@@ -1,0 +1,16 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "framework": "nextjs",
+  "installCommand": "npm install",
+  "env": {
+    "NEXT_PUBLIC_BACKEND_URL": "@backend_url",
+    "SESSION_SECRET": "@session_secret",
+    "ENCRYPTION_KEY": "@encryption_key"
+  },
+  "build": {
+    "env": {
+      "VERCEL": "1"
+    }
+  }
+}

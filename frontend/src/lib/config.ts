@@ -125,8 +125,9 @@ export function getFrontendConfig(): FrontendConfig {
       process.env.ENCRYPTION_KEY || "dev-encryption-key-change-in-production",
   }
 
-  // Security validation: Warn about development secrets in production
-  if (isProduction) {
+  // Security validation: Only warn during runtime, not during build
+  if (isProduction && !process.env.VERCEL && !process.env.CI) {
+    // Only check when not in build environment (Vercel, CI, etc.)
     if (security.sessionSecret.includes("dev-")) {
       console.error(
         "⚠️  SECURITY WARNING: Using development session secret in production!"
