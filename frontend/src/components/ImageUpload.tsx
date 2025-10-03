@@ -16,7 +16,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
 import { Camera, CheckCircle, Lock } from "lucide-react"
-import { uploadImage, type UploadResult } from "@/lib/actions"
+import { type UploadResult } from "@/lib/actions"
 import { frontendConfig } from "@/lib/config"
 
 // Security-focused constants following security-expert.md guidelines
@@ -406,7 +406,13 @@ export function ImageUpload({
         const form = e.currentTarget
         const formData = new FormData(form)
 
-        const result = await uploadImage(formData)
+        // Use API route instead of server action for better production compatibility
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        })
+
+        const result = await response.json()
 
         if (result.success && result.data) {
           onUploadSuccess?.(result.data)
