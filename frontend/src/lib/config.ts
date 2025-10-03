@@ -118,22 +118,36 @@ export function getFrontendConfig(): FrontendConfig {
   }
 
   // Security configuration
+  // During build, use placeholder values that pass validation
+  const isBuildTime = process.env.VERCEL === "1" || process.env.CI === "true"
   const security = {
     sessionSecret:
-      process.env.SESSION_SECRET || "dev-session-secret-change-in-production",
+      process.env.SESSION_SECRET ||
+      (isBuildTime
+        ? "build-time-placeholder-secret-16chars"
+        : "dev-session-secret-change-in-production"),
     encryptionKey:
-      process.env.ENCRYPTION_KEY || "dev-encryption-key-change-in-production",
+      process.env.ENCRYPTION_KEY ||
+      (isBuildTime
+        ? "build-time-placeholder-key-16chars"
+        : "dev-encryption-key-change-in-production"),
   }
 
   // Security validation: Only warn during runtime, not during build
-  if (isProduction && !process.env.VERCEL && !process.env.CI) {
+  if (isProduction && !isBuildTime) {
     // Only check when not in build environment (Vercel, CI, etc.)
-    if (security.sessionSecret.includes("dev-")) {
+    if (
+      security.sessionSecret.includes("dev-") ||
+      security.sessionSecret.includes("build-time")
+    ) {
       console.error(
         "⚠️  SECURITY WARNING: Using development session secret in production!"
       )
     }
-    if (security.encryptionKey.includes("dev-")) {
+    if (
+      security.encryptionKey.includes("dev-") ||
+      security.encryptionKey.includes("build-time")
+    ) {
       console.error(
         "⚠️  SECURITY WARNING: Using development encryption key in production!"
       )
@@ -212,8 +226,11 @@ export function validateFrontendConfig(config: FrontendConfig): void {
 // Export singleton config instance
 export const frontendConfig = getFrontendConfig()
 
-// Validate configuration at module load
-validateFrontendConfig(frontendConfig)
+// Validate configuration at module load (skip during build)
+// During build (VERCEL=1 or CI), environment variables may not be available yet
+if (!process.env.VERCEL && !process.env.CI) {
+  validateFrontendConfig(frontendConfig)
+}
 
 // Magic numbers for file validation (security)
 export const MAGIC_NUMBERS = {
