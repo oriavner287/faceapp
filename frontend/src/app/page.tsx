@@ -60,8 +60,8 @@ function ConnectionIndicator({
   const [backendUrl, setBackendUrl] = useState("")
 
   useEffect(() => {
-    const url =
-      process.env.NEXT_PUBLIC_API_URL || "https://faceapp-lhtz.onrender.com"
+    // Use NEXT_PUBLIC_BACKEND_URL from environment for all environments
+    const url = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"
     setBackendUrl(url)
 
     // Check backend connection
@@ -306,6 +306,7 @@ export default function Home() {
   })
 
   const [similarityThreshold, setSimilarityThreshold] = useState(0.7)
+  const [isPrivacyDialogOpen, setIsPrivacyDialogOpen] = useState(false)
 
   // Event handlers
   const handleUploadSuccess = useCallback(
@@ -506,6 +507,7 @@ export default function Home() {
           <ImageUpload
             onUploadSuccess={handleUploadSuccess}
             onUploadError={handleUploadError}
+            onPrivacyClick={() => setIsPrivacyDialogOpen(true)}
           />
 
           {/* Search progress */}
@@ -538,96 +540,139 @@ export default function Home() {
             </div>
           )}
 
-          {/* Separator before results */}
-          {searchState.phase === "completed" &&
-            searchState.searchResults.length > 0 && (
+          {/* Search results section */}
+          {searchState.searchResults.length > 0 ? (
+            <>
               <div className="py-4">
                 <Separator />
               </div>
-            )}
-
-          {/* Search results section */}
-          {searchState.phase === "completed" &&
-          searchState.searchResults.length > 0 ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">
-                  Search Results ({searchState.searchResults.length})
-                </h2>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-semibold">
+                    Search Results ({searchState.searchResults.length})
+                  </h2>
+                </div>
+                <SearchResults
+                  results={searchState.searchResults}
+                  isLoading={false}
+                  error={null}
+                  onThresholdChange={handleThresholdChange}
+                  currentThreshold={similarityThreshold}
+                />
               </div>
-              <SearchResults
-                results={searchState.searchResults}
-                isLoading={false}
-                error={null}
-                onThresholdChange={handleThresholdChange}
-                currentThreshold={similarityThreshold}
-              />
+            </>
+          ) : searchState.phase === "completed" ? (
+            <div className="text-center py-12">
+              <div className="text-5xl mb-3">🔍</div>
+              <p className="text-muted-foreground text-sm">
+                No similar faces found. Try uploading a different image or
+                adjusting the similarity threshold.
+              </p>
             </div>
-          ) : searchState.phase === "completed" &&
-            searchState.searchResults.length === 0 ? (
-            <Card className="border-none shadow-sm">
-              <CardContent className="p-12 text-center">
-                <div className="text-6xl mb-4">🔍</div>
-                <h3 className="text-lg font-semibold mb-2">
-                  No Similar Faces Found
-                </h3>
-                <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                  We couldn't find any videos with faces similar to your
-                  uploaded image.
-                </p>
-                <div className="space-y-2 text-sm text-muted-foreground">
-                  <p className="font-medium">Try:</p>
-                  <ul className="space-y-1">
-                    <li>• Uploading a clearer image with better lighting</li>
-                    <li>• Using a photo where the face is more visible</li>
-                    <li>• Lowering the similarity threshold</li>
-                  </ul>
-                </div>
-              </CardContent>
-            </Card>
           ) : searchState.phase === "idle" ? (
-            <Card className="border-none shadow-sm bg-gradient-to-br from-blue-50 to-indigo-50">
-              <CardContent className="p-12 text-center">
-                <div className="text-6xl mb-4">🎬</div>
-                <h3 className="text-lg font-semibold mb-2">Ready to Search</h3>
-                <p className="text-muted-foreground">
-                  Upload an image above to start searching for similar faces in
-                  videos
-                </p>
-              </CardContent>
-            </Card>
+            <div className="text-center py-12">
+              <div className="text-5xl mb-3">📸</div>
+              <p className="text-muted-foreground text-sm">
+                Upload an image to start searching for similar faces
+              </p>
+            </div>
           ) : null}
-
-          {/* Privacy notice */}
-          <Card className="border-green-200 bg-green-50/50">
-            <CardContent className="p-6">
-              <div className="flex items-start space-x-3">
-                <div className="text-green-600 text-xl flex-shrink-0">🔒</div>
-                <div className="space-y-2">
-                  <h4 className="font-semibold text-green-800 text-sm">
-                    Privacy & Security
-                  </h4>
-                  <div className="text-xs text-green-700 space-y-1">
-                    <p>
-                      • Your images are processed securely and automatically
-                      deleted after 1 hour
-                    </p>
-                    <p>
-                      • Face recognition data is encrypted and never stored
-                      permanently
-                    </p>
-                    <p>
-                      • All uploads are scanned for security and validated
-                      before processing
-                    </p>
-                    <p>• We comply with GDPR and privacy regulations</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </main>
+
+      {/* Privacy & Security Dialog */}
+      <Dialog open={isPrivacyDialogOpen} onOpenChange={setIsPrivacyDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <span className="text-2xl">🔒</span>
+              <span>Privacy & Security</span>
+            </DialogTitle>
+            <DialogDescription>
+              Your privacy and data security are our top priorities
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-3">
+              <div className="flex items-start space-x-3">
+                <div className="text-green-600 text-lg flex-shrink-0 mt-0.5">
+                  ⏱️
+                </div>
+                <div>
+                  <h4 className="font-semibold text-sm mb-1">
+                    Automatic Deletion
+                  </h4>
+                  <p className="text-sm text-muted-foreground">
+                    Your images are processed securely and automatically deleted
+                    after 1 hour. We don't keep your photos longer than
+                    necessary.
+                  </p>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="flex items-start space-x-3">
+                <div className="text-green-600 text-lg flex-shrink-0 mt-0.5">
+                  🔐
+                </div>
+                <div>
+                  <h4 className="font-semibold text-sm mb-1">Encrypted Data</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Face recognition data is encrypted and never stored
+                    permanently. All biometric information is protected with
+                    industry-standard encryption.
+                  </p>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="flex items-start space-x-3">
+                <div className="text-green-600 text-lg flex-shrink-0 mt-0.5">
+                  🛡️
+                </div>
+                <div>
+                  <h4 className="font-semibold text-sm mb-1">
+                    Security Scanning
+                  </h4>
+                  <p className="text-sm text-muted-foreground">
+                    All uploads are scanned for security threats and validated
+                    before processing. We protect against malicious files and
+                    ensure safe operations.
+                  </p>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="flex items-start space-x-3">
+                <div className="text-green-600 text-lg flex-shrink-0 mt-0.5">
+                  ⚖️
+                </div>
+                <div>
+                  <h4 className="font-semibold text-sm mb-1">
+                    GDPR Compliance
+                  </h4>
+                  <p className="text-sm text-muted-foreground">
+                    We comply with GDPR and international privacy regulations.
+                    Your biometric data is treated as sensitive personal
+                    information with appropriate safeguards.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+              <p className="text-xs text-blue-800">
+                <strong>Note:</strong> This application processes facial
+                recognition data temporarily for search purposes only. No data
+                is shared with third parties or used for any other purpose.
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Fixed connection status indicator with dialog */}
       <ConnectionIndicator

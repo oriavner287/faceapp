@@ -3,7 +3,7 @@
 import React from "react"
 import { useCallback, useState, useRef } from "react"
 import { useDropzone } from "react-dropzone"
-import { useFormState, useFormStatus } from "react-dom"
+import { useFormStatus } from "react-dom"
 import {
   Card,
   CardContent,
@@ -26,6 +26,7 @@ const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"]
 interface ImageUploadProps {
   onUploadSuccess?: (result: UploadResult["data"]) => void
   onUploadError?: (error: string) => void
+  onPrivacyClick?: () => void
   className?: string
 }
 
@@ -173,11 +174,12 @@ function SubmitButton({
 export function ImageUpload({
   onUploadSuccess,
   onUploadError,
+  onPrivacyClick,
   className,
 }: ImageUploadProps) {
   // React hooks in proper order: data fetching, logic, primitives, constants, computed values
   const formRef = useRef<HTMLFormElement>(null)
-  const [formState, formAction] = useFormState(
+  const [formState, formAction] = React.useActionState(
     async (_prevState: UploadResult | null, formData: FormData) => {
       return await uploadImage(formData)
     },
@@ -485,20 +487,19 @@ export function ImageUpload({
           </form>
         )}
 
-        {/* Security and privacy notice */}
-        <div className="text-xs text-gray-500 space-y-1">
-          <p>
-            🔒 Your image is processed securely and automatically deleted after
-            1 hour.
-          </p>
-          <p>
-            🛡️ All uploads are scanned for security and validated before
-            processing.
-          </p>
-          <p>
-            🔐 Face recognition data is encrypted and never stored permanently.
-          </p>
-        </div>
+        {/* Privacy button */}
+        {onPrivacyClick && (
+          <div className="text-left">
+            <button
+              type="button"
+              onClick={onPrivacyClick}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors inline-flex items-center space-x-1 underline decoration-dotted underline-offset-2"
+            >
+              <span>🔒</span>
+              <span>Privacy & Security</span>
+            </button>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

@@ -19,11 +19,31 @@ const nextConfig = {
     const backendUrl =
       process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"
 
+    // Parse the backend URL to extract protocol and hostname for CSP
+    let backendHost = backendUrl
+    try {
+      const url = new URL(backendUrl)
+      backendHost = `${url.protocol}//${url.host}`
+    } catch (error) {
+      console.warn(
+        "Failed to parse NEXT_PUBLIC_BACKEND_URL, using as-is:",
+        backendUrl
+      )
+    }
+
     // Build connect-src directive with environment-specific URLs
     const isProduction = process.env.NODE_ENV === "production"
     const connectSrc = isProduction
-      ? `'self' ${backendUrl}`
-      : `'self' ${backendUrl} ws://localhost:3001`
+      ? `'self' ${backendHost}`
+      : `'self' ${backendHost} ws://localhost:3001`
+
+    // Debug logging to verify CSP configuration
+    console.log("=== Next.js CSP Configuration ===")
+    console.log("Environment:", process.env.NODE_ENV)
+    console.log("NEXT_PUBLIC_BACKEND_URL:", process.env.NEXT_PUBLIC_BACKEND_URL)
+    console.log("Backend Host:", backendHost)
+    console.log("Connect-Src:", connectSrc)
+    console.log("===================================")
 
     return [
       {
