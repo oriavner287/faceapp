@@ -473,15 +473,17 @@ export default function Home() {
     clearSession()
   }, [clearSession])
 
-  // Auto-cleanup on unmount
+  // Auto-cleanup on unmount only (not on phase changes)
   useEffect(() => {
     return () => {
+      // Only cleanup when component unmounts, not on every phase change
+      // This prevents infinite loops while still cleaning up on page navigation
       if (searchState.phase !== "idle" && searchState.phase !== "completed") {
-        // Cleanup any ongoing operations
         clearSession()
       }
     }
-  }, [searchState.phase, clearSession])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Empty deps - only run on mount/unmount
 
   return (
     <>

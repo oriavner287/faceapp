@@ -188,53 +188,54 @@ function detectMaliciousContent(buffer: Buffer): {
   isSafe: boolean
   reason?: string
 } {
-  const content = buffer.toString("ascii", 0, Math.min(buffer.length, 1024))
+  // For images, focus on binary-level threats, not text content in metadata
+  // JPEG/PNG/WebP files can contain text in EXIF/metadata that's benign
 
-  // Check for embedded scripts or suspicious content
-  const suspiciousPatterns = [
-    /<script/i,
-    /javascript:/i,
-    /vbscript:/i,
-    /onload=/i,
-    /onerror=/i,
-    /eval\(/i,
-    /document\./i,
-    /window\./i,
-    /%3Cscript/i, // URL encoded <script
-    /\x00/, // Null bytes (potential polyglot files)
-    /data:text\/html/i, // Data URLs with HTML
-    /data:application\/javascript/i, // Data URLs with JS
-    /<iframe/i, // Embedded iframes
-    /<object/i, // Embedded objects
-    /<embed/i, // Embedded content
-  ]
-
-  for (const pattern of suspiciousPatterns) {
-    if (pattern.test(content)) {
-      return { isSafe: false, reason: "Suspicious content detected" }
-    }
-  }
-
-  // Check for excessive null bytes or control characters
-  const nullBytes = (content.match(/\x00/g) || []).length
-  if (nullBytes > 10) {
-    return { isSafe: false, reason: "Excessive null bytes detected" }
-  }
-
-  // Check for suspicious binary patterns that might indicate polyglot files
+  // Check for executable file signatures (polyglot attacks)
   const suspiciousBinaryPatterns = [
-    /PK\x03\x04/, // ZIP file signature (potential polyglot)
-    /\x7fELF/, // ELF executable signature
-    /MZ/, // DOS/Windows executable signature
-    /\xca\xfe\xba\xbe/, // Java class file signature
+    { pattern: /PK\x03\x04/, name: "ZIP/JAR" }, // ZIP file signature
+    { pattern: /\x7fELF/, name: "ELF executable" }, // ELF executable
+    { pattern: /MZ/, name: "DOS/Windows executable" }, // DOS/Windows executable
+    { pattern: /\xca\xfe\xba\xbe/, name: "Java class" }, // Java class file
+    { pattern: /#!\s*\//, name: "Shell script" }, // Shell script shebang
   ]
 
-  for (const pattern of suspiciousBinaryPatterns) {
-    if (
-      pattern.test(buffer.toString("binary", 0, Math.min(buffer.length, 512)))
-    ) {
-      return { isSafe: false, reason: "Suspicious binary content detected" }
+  const binaryContent = buffer.toString(
+    "binary",
+    0,
+    Math.min(buffer.length, 512)
+  )
+
+  for (const { pattern, name } of suspiciousBinaryPatterns) {
+    if (pattern.test(binaryContent)) {
+      return { isSafe: false, reason: `Suspicious ${name} signature detected` }
     }
+  }
+
+  // Check for HTML/JS only in the first few bytes (not in EXIF metadata)
+  // Real images won't have HTML tags at the very beginning
+  const firstBytes = buffer.toString("ascii", 0, Math.min(buffer.length, 100))
+
+  const earlyContentPatterns = [
+    /<\?php/i, // PHP code at start
+    /<%/i, // ASP/JSP code at start
+    /<!DOCTYPE\s+html/i, // HTML document
+    /<html/i, // HTML tag at start
+  ]
+
+  for (const pattern of earlyContentPatterns) {
+    if (pattern.test(firstBytes)) {
+      return { isSafe: false, reason: "Suspicious script content detected" }
+    }
+  }
+
+  // Check for excessive null bytes (but allow some for image padding)
+  const nullBytes = buffer.filter(byte => byte === 0x00).length
+  const nullByteRatio = nullBytes / buffer.length
+
+  // More than 50% null bytes is suspicious for an image
+  if (nullByteRatio > 0.5 && buffer.length > 1000) {
+    return { isSafe: false, reason: "Excessive null bytes detected" }
   }
 
   return { isSafe: true }
@@ -248,27 +249,34 @@ function simulateVirusScan(
   isClean: boolean
   reason?: string
 } {
-  // Simulate known malicious file patterns
+  // Check for known test malware signatures (EICAR test file)
+  // Note: Real images won't contain these exact byte sequences
   const maliciousSignatures = [
     "X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*", // EICAR test string
-    "MALWARE_SIGNATURE_TEST", // Test signature
   ]
 
-  const content = buffer.toString("ascii", 0, Math.min(buffer.length, 1024))
+  // Only check the actual binary content, not ASCII interpretation
+  const binaryContent = buffer.toString("binary")
 
   for (const signature of maliciousSignatures) {
-    if (content.includes(signature)) {
+    if (binaryContent.includes(signature)) {
       return { isClean: false, reason: "Malicious signature detected" }
     }
   }
 
-  // Check for suspicious file size patterns
+  // Check for suspiciously small files with high entropy
+  // Valid images should have reasonable size and entropy patterns
   if (buffer.length > 0 && buffer.length < 100) {
-    // Very small files might be suspicious
     const entropy = calculateEntropy(buffer)
-    if (entropy > 7.5) {
+    // Very high entropy in tiny files suggests encrypted/obfuscated content
+    if (entropy > 7.8) {
       return { isClean: false, reason: "High entropy in small file" }
     }
+  }
+
+  // Check for files that are too small to be valid images
+  if (buffer.length < 50) {
+    return { isClean: false, reason: "File too small to be a valid image" }
   }
 
   return { isClean: true }

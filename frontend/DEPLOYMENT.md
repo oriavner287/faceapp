@@ -25,7 +25,7 @@ Set these environment variables in your Vercel dashboard:
 4. **MAX_FILE_SIZE** (Optional)
 
    - Maximum file upload size in bytes
-   - Default: `10485760` (10MB)
+   - Default: `5242880` (5MB)
 
 5. **ALLOWED_MIME_TYPES** (Optional)
 

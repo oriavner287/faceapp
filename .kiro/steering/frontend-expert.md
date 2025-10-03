@@ -63,7 +63,7 @@ interface FaceDetectionProps {
 }
 
 // 3. Global constants (ALL_CAPS)
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 const SUPPORTED_FORMATS = ["image/jpeg", "image/png"] as const
 
 // 4. Main component
@@ -120,7 +120,7 @@ import { useCallback, useState } from "react"
 import { useDropzone } from "react-dropzone"
 import { detectFaces } from "@/lib/actions"
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB - Security: Prevent DoS attacks
+const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB - Security: Prevent DoS attacks
 const ACCEPTED_TYPES = {
   "image/jpeg": [".jpg", ".jpeg"],
   "image/png": [".png"],

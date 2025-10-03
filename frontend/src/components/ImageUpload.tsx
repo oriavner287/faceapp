@@ -3,7 +3,6 @@
 import React from "react"
 import { useCallback, useState, useRef } from "react"
 import { useDropzone } from "react-dropzone"
-import { useFormStatus } from "react-dom"
 import {
   Card,
   CardContent,
@@ -148,17 +147,17 @@ function UploadingIndicator({
 function SubmitButton({
   disabled,
   securityStatus,
+  isUploading,
 }: {
   disabled: boolean
   securityStatus: ValidationState["securityStatus"]
+  isUploading: boolean
 }) {
-  const { pending } = useFormStatus()
-
-  const isDisabled = disabled || pending || securityStatus !== "secure"
+  const isDisabled = disabled || isUploading || securityStatus !== "secure"
 
   return (
     <Button type="submit" disabled={isDisabled} className="w-full">
-      {pending ? (
+      {isUploading ? (
         <>
           <Spinner size="sm" className="mr-2" />
           Uploading...
@@ -179,12 +178,8 @@ export function ImageUpload({
 }: ImageUploadProps) {
   // React hooks in proper order: data fetching, logic, primitives, constants, computed values
   const formRef = useRef<HTMLFormElement>(null)
-  const [formState, formAction] = React.useActionState(
-    async (_prevState: UploadResult | null, formData: FormData) => {
-      return await uploadImage(formData)
-    },
-    null
-  )
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const [validationState, setValidationState] = useState<ValidationState>({
     isValidating: false,
     isValid: false,
@@ -275,16 +270,37 @@ export function ImageUpload({
 
   const handleFaceUpload = useCallback(
     async (acceptedFiles: File[]) => {
-      if (acceptedFiles.length === 0) return
+      console.log(
+        "[ImageUpload] handleFaceUpload called with",
+        acceptedFiles.length,
+        "files"
+      )
+
+      if (acceptedFiles.length === 0) {
+        console.log("[ImageUpload] No files accepted")
+        return
+      }
 
       const file = acceptedFiles[0]
-      if (!file) return
+      if (!file) {
+        console.log("[ImageUpload] First file is undefined")
+        return
+      }
 
+      console.log(
+        "[ImageUpload] Processing file:",
+        file.name,
+        file.size,
+        "bytes"
+      )
       setPreviewState({ file, previewUrl: null })
 
       const isValid = await handleFileValidation(file)
       if (!isValid) {
+        console.log("[ImageUpload] File validation failed")
         setPreviewState({ file: null, previewUrl: null })
+      } else {
+        console.log("[ImageUpload] File validation passed")
       }
     },
     [handleFileValidation]
@@ -345,16 +361,41 @@ export function ImageUpload({
       multiple: false,
     })
 
-  // Handle form submission result
-  React.useEffect(() => {
-    if (formState?.success && formState.data) {
-      onUploadSuccess?.(formState.data)
-      // Reset form after successful upload
-      handleRemoveFile()
-    } else if (formState?.error) {
-      onUploadError?.(formState.error.message)
-    }
-  }, [formState, onUploadSuccess, onUploadError, handleRemoveFile])
+  // Handle form submission
+  const handleFormSubmit = useCallback(
+    async (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault()
+
+      if (!canUpload) return
+
+      setIsUploading(true)
+      setUploadError(null)
+
+      try {
+        // Get FormData from the form element
+        const form = e.currentTarget
+        const formData = new FormData(form)
+
+        const result = await uploadImage(formData)
+
+        if (result.success && result.data) {
+          onUploadSuccess?.(result.data)
+          handleRemoveFile()
+        } else if (result.error) {
+          setUploadError(result.error.message)
+          onUploadError?.(result.error.message)
+        }
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Upload failed"
+        setUploadError(errorMessage)
+        onUploadError?.(errorMessage)
+      } finally {
+        setIsUploading(false)
+      }
+    },
+    [canUpload, onUploadSuccess, onUploadError, handleRemoveFile]
+  )
 
   return (
     <Card className={className}>
@@ -410,7 +451,10 @@ export function ImageUpload({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={handleRemoveFile}
+                onClick={e => {
+                  e.stopPropagation()
+                  handleRemoveFile()
+                }}
               >
                 Remove File
               </Button>
@@ -448,30 +492,21 @@ export function ImageUpload({
           </Alert>
         )}
 
-        {/* Server action error display */}
-        {formState?.error && (
+        {/* Upload error display */}
+        {uploadError && (
           <Alert variant="destructive">
             <AlertTitle>Upload Failed</AlertTitle>
-            <AlertDescription>{formState.error.message}</AlertDescription>
+            <AlertDescription>{uploadError}</AlertDescription>
           </Alert>
         )}
 
         {/* Upload form */}
         {hasFile && validationState.isValid && (
-          <form ref={formRef} action={formAction} className="space-y-4">
+          <form ref={formRef} onSubmit={handleFormSubmit} className="space-y-4">
             <input
               type="file"
               name="image"
-              accept={ALLOWED_MIME_TYPES.join(",")}
               className="hidden"
-              onChange={e => {
-                // This ensures the file is properly set in the form
-                if (e.target.files && previewState.file) {
-                  const dataTransfer = new DataTransfer()
-                  dataTransfer.items.add(previewState.file)
-                  e.target.files = dataTransfer.files
-                }
-              }}
               ref={input => {
                 if (input && previewState.file) {
                   const dataTransfer = new DataTransfer()
@@ -483,6 +518,7 @@ export function ImageUpload({
             <SubmitButton
               disabled={!canUpload}
               securityStatus={validationState.securityStatus}
+              isUploading={isUploading}
             />
           </form>
         )}

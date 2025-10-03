@@ -90,7 +90,7 @@ export function getFrontendConfig(): FrontendConfig {
   const upload = {
     maxFileSize: parseIntSafe(
       process.env.MAX_FILE_SIZE,
-      10485760, // 10MB default
+      5242880, // 5MB default
       1024, // min 1KB
       52428800 // max 50MB
     ),

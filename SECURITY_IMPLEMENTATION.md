@@ -160,7 +160,7 @@ RATE_LIMIT_MAX_REQUESTS=100
 RATE_LIMIT_FACE_DETECTION_MAX=20
 
 # File Upload Security
-MAX_FILE_SIZE=10485760
+MAX_FILE_SIZE=5242880
 ALLOWED_MIME_TYPES=image/jpeg,image/png,image/webp
 
 # Video Fetching Security

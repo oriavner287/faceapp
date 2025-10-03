@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server"
 import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { logger } from "hono/logger"
+import { bodyLimit } from "hono/body-limit"
 import { RPCHandler } from "@orpc/server/fetch"
 import { appRouter } from "./routers/index.js"
 import { config, API_ENDPOINTS } from "./config/index.js"
@@ -13,6 +14,28 @@ import {
 } from "./middleware/security.js"
 
 const app = new Hono()
+
+// Body size limit middleware - must be before other middleware that parse body
+app.use(
+  "*",
+  bodyLimit({
+    maxSize: config.upload.maxFileSize,
+    onError: c => {
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: "PAYLOAD_TOO_LARGE",
+            message: `Request body too large. Maximum size is ${Math.round(
+              config.upload.maxFileSize / 1024 / 1024
+            )}MB`,
+          },
+        },
+        413
+      )
+    },
+  })
+)
 
 // Security middleware following security-expert.md guidelines
 app.use("*", logger())
