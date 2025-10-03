@@ -82,6 +82,18 @@ graph TB
 - **Event Handlers**: Proper naming conventions (handleResultClick, handleThresholdChange)
 - **Optimization**: Image lazy loading, virtual scrolling, and proper caching strategies
 
+#### SearchHistory Component (`/frontend/src/components/SearchHistory.tsx`)
+
+- **Purpose**: Display previous search results in a compact, accessible format below the upload section
+- **Architecture**: Function declaration component following frontend-expert.md patterns with proper hook ordering
+- **Props**: Type-safe interfaces with SearchHistoryItem[] arrays and callback handlers
+- **State Management**: React hooks for expanded/collapsed state and selected history item
+- **Features**: Chronological list of past searches, thumbnail previews, result counts, timestamps
+- **UI Components**: shadcn/ui Card, Badge, Button, Separator components with responsive design
+- **Event Handlers**: handleHistoryItemClick, handleHistoryExpand, handleHistoryClear
+- **Storage**: Local storage integration for persisting search history across sessions
+- **Privacy**: Automatic cleanup of old history items (older than 24 hours) following privacy guidelines
+
 #### LoadingSpinner Component (`/frontend/src/components/ui/LoadingSpinner.tsx`)
 
 - **Purpose**: Show processing status and progress indicators with comprehensive error handling
@@ -147,13 +159,16 @@ frontend/src/
 │   ├── ui/               # shadcn/ui components (Button, Card, Alert, etc.)
 │   ├── FaceUpload.tsx    # Face upload component
 │   ├── SearchResults.tsx # Search results display
+│   ├── SearchHistory.tsx # Search history display
 │   └── LoadingSpinner.tsx # Loading and error states
 ├── lib/                  # Utilities and configurations
 │   ├── actions.ts        # Next.js 15 server actions
 │   ├── api-config.ts     # oRPC client configuration
+│   ├── searchHistory.ts  # Search history storage utilities
 │   └── utils.ts          # General utility functions
 ├── hooks/                # Custom React hooks
-│   └── useImageProcessor.ts # Image processing hook
+│   ├── useImageProcessor.ts # Image processing hook
+│   └── useSearchHistory.ts  # Search history management hook
 ├── contexts/             # React context providers
 │   └── SessionProvider.tsx # Search session management
 └── test/                 # Test setup and utilities
@@ -226,6 +241,20 @@ interface SearchSession {
   threshold: number
   createdAt: Date
   expiresAt: Date
+}
+```
+
+#### SearchHistoryItem Interface
+
+```typescript
+interface SearchHistoryItem {
+  id: string
+  thumbnailDataUrl: string // Base64 encoded thumbnail for display
+  timestamp: Date
+  resultCount: number
+  threshold: number
+  results: VideoMatch[]
+  status: "completed" | "error"
 }
 ```
 
@@ -339,6 +368,20 @@ interface SearchSession {
 - Simple implementation without database dependencies
 - Automatic cleanup through TTL and cron jobs
 - Compatible with serverless deployment (Vercel, Netlify)
+
+### Search History Storage Strategy
+
+**Decision**: Use browser localStorage for client-side search history with automatic cleanup
+**Rationale**:
+
+- **Privacy First**: Data stays on user's device, never sent to server for storage
+- **No Backend Required**: Eliminates need for database or server-side storage
+- **Instant Access**: Fast retrieval without network requests
+- **Automatic Cleanup**: Implement TTL-based cleanup (24 hours) to respect privacy
+- **Demo-Friendly**: For demonstration purposes, can pre-populate with mock data
+- **GDPR Compliant**: User controls their own data, can clear at any time
+- **Size Limits**: Store only essential data (thumbnails as base64, result metadata)
+- **Fallback**: Gracefully handle localStorage unavailable scenarios
 
 ### Video Data Fetching Approach
 

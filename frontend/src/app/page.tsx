@@ -34,9 +34,13 @@ import {
 } from "@/components/ui/dialog"
 import { ImageUpload } from "@/components/ImageUpload"
 import { LoadingSpinner } from "@/components/LoadingSpinner"
+import { SearchHistory } from "@/components/SearchHistory"
 import { Toaster } from "@/components/ui/toaster"
 import { useToast } from "@/hooks/use-toast"
 import { useSession } from "@/contexts/SessionProvider"
+import { useSearchHistory } from "@/hooks/useSearchHistory"
+import { generateThumbnailDataUrl } from "@/lib/searchHistory"
+import { initializeMockHistory } from "@/lib/mockSearchHistory"
 import {
   detectFaces,
   searchVideos,
@@ -278,6 +282,14 @@ export default function Home() {
     clearSession,
   } = useSession()
 
+  // Search history management
+  const {
+    history: searchHistory,
+    isLoading: isHistoryLoading,
+    addToHistory,
+    clearAll: clearAllHistory,
+  } = useSearchHistory()
+
   // Component state
   const [searchState, setSearchState] = useState<SearchState>({
     phase: "idle",
@@ -288,7 +300,14 @@ export default function Home() {
 
   const [similarityThreshold, setSimilarityThreshold] = useState(0.7)
   const [isPrivacyDialogOpen, setIsPrivacyDialogOpen] = useState(false)
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [isViewingHistory, setIsViewingHistory] = useState(false)
   const { toast } = useToast()
+
+  // Initialize mock history on first load (for demonstration)
+  useEffect(() => {
+    initializeMockHistory()
+  }, [])
 
   // Filter and sort state
   const [sortBy, setSortBy] = useState<"similarity" | "title" | "source">(
@@ -365,6 +384,9 @@ export default function Home() {
       try {
         // Create new session
         const sessionId = await createSession()
+
+        // Clear history view flag
+        setIsViewingHistory(false)
 
         // Update search state and clear any previous errors
         setSearchState(prev => {
@@ -447,6 +469,24 @@ export default function Home() {
         updateSessionResults(sessionId, results)
         updateSessionStatus(sessionId, "completed")
 
+        // Save to history with thumbnail
+        if (uploadedFile) {
+          try {
+            const thumbnailDataUrl = await generateThumbnailDataUrl(
+              uploadedFile
+            )
+            addToHistory({
+              thumbnailDataUrl,
+              resultCount: results.length,
+              threshold: similarityThreshold,
+              results,
+              status: "completed",
+            })
+          } catch (err) {
+            console.error("Failed to save to history:", err)
+          }
+        }
+
         // Show success toast
         toast({
           title: "Search Complete!",
@@ -469,6 +509,9 @@ export default function Home() {
       updateSessionResults,
       updateSessionStatus,
       similarityThreshold,
+      uploadedFile,
+      addToHistory,
+      toast,
     ]
   )
 
@@ -493,7 +536,10 @@ export default function Home() {
     })
   }, [])
 
-  const handleFileSelected = useCallback(() => {
+  const handleFileSelected = useCallback((file: File) => {
+    // Store the uploaded file for history thumbnail generation
+    setUploadedFile(file)
+
     // Clear any previous errors when a new file is selected
     setSearchState(prev => {
       const { error, ...rest } = prev
@@ -525,8 +571,33 @@ export default function Home() {
       searchResults: [],
     })
     setSimilarityThreshold(0.7)
+    setUploadedFile(null)
+    setIsViewingHistory(false)
     clearSession()
   }, [clearSession])
+
+  const handleHistoryItemClick = useCallback((item: any) => {
+    // Load results from history item
+    setSearchState({
+      phase: "completed",
+      progress: 100,
+      currentStep: "Viewing historical search",
+      searchResults: item.results,
+    })
+    setSimilarityThreshold(item.threshold)
+    setIsViewingHistory(true)
+
+    // Scroll to results
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }, [])
+
+  const handleClearHistory = useCallback(() => {
+    clearAllHistory()
+    toast({
+      title: "History Cleared",
+      description: "All search history has been deleted from your device.",
+    })
+  }, [clearAllHistory, toast])
 
   // Auto-cleanup on unmount only (not on phase changes)
   useEffect(() => {
@@ -560,8 +631,8 @@ export default function Home() {
 
         {/* Upload section - centered with max-w-2xl */}
         <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
-          {/* Image upload section - hide after completion */}
-          {searchState.phase !== "completed" && (
+          {/* Image upload section - hide after completion or when viewing history */}
+          {searchState.phase !== "completed" && !isViewingHistory && (
             <ImageUpload
               key={searchState.phase === "idle" ? "reset" : "active"}
               onUploadSuccess={handleUploadSuccess}
@@ -588,8 +659,8 @@ export default function Home() {
             </Alert>
           )}
 
-          {/* New search button - only show when completed with results */}
-          {searchState.phase === "completed" && (
+          {/* New search button - only show when completed with results or viewing history */}
+          {(searchState.phase === "completed" || isViewingHistory) && (
             <div className="flex justify-center items-center -mb-2">
               <Button
                 onClick={handleNewSearch}
@@ -602,6 +673,21 @@ export default function Home() {
             </div>
           )}
         </div>
+
+        {/* Search History - wider section, show when idle and not in error state */}
+        {searchState.phase === "idle" && !searchState.error && (
+          <div className="max-w-6xl mx-auto px-4 pb-8">
+            <div className="pb-4">
+              <Separator />
+            </div>
+            <SearchHistory
+              history={searchHistory}
+              onHistoryItemClick={handleHistoryItemClick}
+              onClearHistory={handleClearHistory}
+              isLoading={isHistoryLoading}
+            />
+          </div>
+        )}
 
         {/* Results section - full width with margins */}
         {searchState.searchResults.length > 0 ? (

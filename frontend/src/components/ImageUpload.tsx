@@ -29,7 +29,7 @@ interface ImageUploadProps {
   onUploadSuccess?: (result: UploadResult["data"]) => void
   onUploadError?: (error: string) => void
   onUploadStart?: () => void
-  onFileSelected?: () => void
+  onFileSelected?: (file: File) => void
   onPrivacyClick?: () => void
   onThresholdChange?: (threshold: number) => void
   initialThreshold?: number
@@ -307,7 +307,7 @@ export function ImageUpload({
       )
 
       // Notify parent that a file has been selected (clears errors)
-      onFileSelected?.()
+      onFileSelected?.(file)
 
       // Clear previous errors when starting a new upload
       setUploadError(null)
