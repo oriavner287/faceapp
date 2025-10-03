@@ -1834,65 +1834,114 @@ export async function searchVideos(
       }
     }
 
-    // TODO: Integrate with backend oRPC video search service
-    // For now, simulate video search results
-    const mockResults = [
-      {
-        id: "video-1",
-        title: "Sample Video 1",
-        thumbnailUrl: "https://example.com/thumb1.jpg",
-        videoUrl: "https://example.com/video1",
-        sourceWebsite: "example.com",
-        similarityScore: 0.85,
-        detectedFaces: [
-          {
-            boundingBox: { x: 100, y: 100, width: 200, height: 200 },
-            embedding: [],
-            confidence: 0.95,
-          },
-        ],
-      },
-      {
-        id: "video-2",
-        title: "Sample Video 2",
-        thumbnailUrl: "https://example.com/thumb2.jpg",
-        videoUrl: "https://example.com/video2",
-        sourceWebsite: "example.com",
-        similarityScore: 0.72,
-        detectedFaces: [
-          {
-            boundingBox: { x: 150, y: 120, width: 180, height: 180 },
-            embedding: [],
-            confidence: 0.88,
-          },
-          {
-            boundingBox: { x: 350, y: 140, width: 160, height: 160 },
-            embedding: [],
-            confidence: 0.76,
-          },
-        ],
-      },
-    ].filter(result => result.similarityScore >= validation.data.threshold)
+    // Call backend oRPC video search service
+    // oRPC format: base URL + router path structure
+    try {
+      const backendUrl =
+        process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"
+      // oRPC path: /api is base, then /video/fetchFromSites for router.video.fetchFromSites
+      const apiUrl = `${backendUrl}/api/video/fetchFromSites`
 
-    logSecurityEvent(
-      "VIDEO_SEARCH_SUCCESS",
-      {
-        embeddingLength: validation.data.embedding.length,
+      console.log("Calling backend video search at:", apiUrl)
+      console.log("Embedding length:", validation.data.embedding.length)
+      console.log("Threshold:", validation.data.threshold)
+      console.log(
+        "First 5 embedding values:",
+        validation.data.embedding.slice(0, 5)
+      )
+
+      const requestBody = {
+        embedding: validation.data.embedding,
         threshold: validation.data.threshold,
-        resultsCount: mockResults.length,
-      },
-      clientIP,
-      "low"
-    )
+      }
 
-    return {
-      success: true,
-      data: {
-        results: mockResults,
-        processedSites: ["example.com", "test.example.com"],
-        progress: 100,
-        status: "completed" as const,
-      },
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      })
+
+      if (!response.ok) {
+        // Try to get error details from response
+        let errorDetails = ""
+        try {
+          const errorBody = await response.text()
+          console.error("Backend error response:", errorBody)
+          errorDetails = ` - ${errorBody.substring(0, 200)}`
+        } catch (e) {
+          // Ignore if we can't read the error body
+        }
+
+        throw new Error(
+          `Backend returned ${response.status}: ${response.statusText}${errorDetails}`
+        )
+      }
+
+      const backendResult = await response.json()
+
+      console.log(
+        "Backend returned:",
+        backendResult.results?.length || 0,
+        "results"
+      )
+
+      // Transform backend results to match frontend interface
+      const results = (backendResult.results || []).map((video: any) => ({
+        id: video.id,
+        title: video.title,
+        thumbnailUrl: video.thumbnailUrl,
+        videoUrl: video.videoUrl,
+        sourceWebsite: video.sourceWebsite,
+        similarityScore: video.similarityScore,
+        detectedFaces: video.detectedFaces || [],
+      }))
+
+      logSecurityEvent(
+        "VIDEO_SEARCH_SUCCESS",
+        {
+          embeddingLength: validation.data.embedding.length,
+          threshold: validation.data.threshold,
+          resultsCount: results.length,
+          processedSites: backendResult.processedSites?.length || 0,
+        },
+        clientIP,
+        "low"
+      )
+
+      return {
+        success: true,
+        data: {
+          results,
+          processedSites: backendResult.processedSites || [],
+          progress: 100,
+          status: "completed" as const,
+        },
+      }
+    } catch (backendError) {
+      console.error("Backend video search failed:", backendError)
+
+      logSecurityEvent(
+        "BACKEND_VIDEO_SEARCH_FAILED",
+        {
+          error:
+            backendError instanceof Error
+              ? backendError.message
+              : "Unknown error",
+        },
+        clientIP,
+        "high"
+      )
+
+      return {
+        success: false,
+        error: {
+          code: "BACKEND_ERROR",
+          message:
+            "Failed to fetch videos from backend. Please try again later.",
+        },
+      }
     }
   } catch (error) {
     logSecurityEvent(
@@ -1944,30 +1993,76 @@ export async function getSearchProgress(
       }
     }
 
-    // TODO: Integrate with backend oRPC to get actual search progress
-    // For now, simulate search progress
-    const mockProgress = {
-      status: "completed" as const,
-      progress: 100,
+    // Call backend oRPC to get actual search progress
+    try {
+      const backendUrl =
+        process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"
+      // oRPC uses the router path structure: router.subrouter.method
+      const apiUrl = `${backendUrl}/api/search/getResults`
 
-      processedSites: ["example.com", "test.example.com"],
-      totalSites: 2,
-      results: [
-        {
-          id: "video-1",
-          title: "Sample Video 1",
-          thumbnailUrl: "https://example.com/thumb1.jpg",
-          videoUrl: "https://example.com/video1",
-          sourceWebsite: "example.com",
-          similarityScore: 0.85,
-          faceCount: 1,
+      console.log("Getting search progress from backend:", apiUrl)
+
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      ],
-    }
+        body: JSON.stringify({
+          searchId,
+        }),
+      })
 
-    return {
-      success: true,
-      data: mockProgress,
+      if (!response.ok) {
+        throw new Error(
+          `Backend returned ${response.status}: ${response.statusText}`
+        )
+      }
+
+      const backendResult = await response.json()
+
+      console.log("Backend progress result:", backendResult)
+
+      return {
+        success: true,
+        data: {
+          status: backendResult.status || "completed",
+          progress: backendResult.progress || 100,
+          processedSites: backendResult.processedSites || [],
+          totalSites: backendResult.totalSites || 0,
+          results: (backendResult.results || []).map((video: any) => ({
+            id: video.id,
+            title: video.title,
+            thumbnailUrl: video.thumbnailUrl,
+            videoUrl: video.videoUrl,
+            sourceWebsite: video.sourceWebsite,
+            similarityScore: video.similarityScore,
+            faceCount: video.detectedFaces?.length || 0,
+          })),
+        },
+      }
+    } catch (backendError) {
+      console.error("Backend search progress failed:", backendError)
+
+      logSecurityEvent(
+        "BACKEND_PROGRESS_FAILED",
+        {
+          searchId,
+          error:
+            backendError instanceof Error
+              ? backendError.message
+              : "Unknown error",
+        },
+        clientIP,
+        "high"
+      )
+
+      return {
+        success: false,
+        error: {
+          code: "BACKEND_ERROR",
+          message: "Unable to get search progress from backend.",
+        },
+      }
     }
   } catch (error) {
     logSecurityEvent(

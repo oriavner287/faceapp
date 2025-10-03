@@ -3,8 +3,6 @@ import { Hono } from "hono"
 import { cors } from "hono/cors"
 import { logger } from "hono/logger"
 import { bodyLimit } from "hono/body-limit"
-import { RPCHandler } from "@orpc/server/fetch"
-import { appRouter } from "./routers/index.js"
 import { config, API_ENDPOINTS } from "./config/index.js"
 import {
   auditLogger,
@@ -12,6 +10,10 @@ import {
   createRateLimiter,
   securityHeaders,
 } from "./middleware/security.js"
+import { videoFetchingService } from "./services/videoFetchingService.js"
+import { thumbnailProcessingService } from "./services/thumbnailProcessingService.js"
+import { sessionService } from "./services/sessionService.js"
+import { FetchVideosInputSchema } from "./contracts/api.js"
 
 const app = new Hono()
 
@@ -114,18 +116,100 @@ app.get("/test", c => {
   return c.text("Backend is working!")
 })
 
-// oRPC handler
-const rpcHandler = new RPCHandler(appRouter)
+// Direct REST endpoint for video search - bypass oRPC complexity
+app.post(`${API_ENDPOINTS.API_BASE}/video/fetchFromSites`, async c => {
+  try {
+    console.log(`[API] Video search endpoint hit`)
+    const body = await c.req.json()
+    console.log(`[API] Request body:`, JSON.stringify(body).substring(0, 200))
 
-// Handle oRPC requests
-app.all(`${API_ENDPOINTS.API_BASE}/*`, async c => {
-  const result = await rpcHandler.handle(c.req.raw)
+    // Validate input
+    const validation = FetchVideosInputSchema.safeParse(body)
+    if (!validation.success) {
+      console.error(`[API] Validation failed:`, validation.error)
+      return c.json(
+        {
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Invalid input",
+            details: validation.error,
+          },
+        },
+        400
+      )
+    }
 
-  if (result.matched) {
-    return result.response
+    const input = validation.data
+    const sessionId = "video-search-" + Date.now()
+
+    // Step 1: Fetch videos from websites
+    const fetchResult = await videoFetchingService.fetchVideosFromAllSites(
+      { useHeadless: true, timeout: 10000 },
+      sessionId,
+      "unknown"
+    )
+
+    console.log(`[API] Fetched ${fetchResult.results.length} videos`)
+
+    if (fetchResult.results.length === 0) {
+      return c.json({
+        results: [],
+        processedSites: fetchResult.processedSites,
+        errors: fetchResult.errors,
+      })
+    }
+
+    // Step 2: Download thumbnails
+    const downloadResult = await videoFetchingService.downloadThumbnails(
+      fetchResult.results
+    )
+
+    console.log(
+      `[API] Downloaded ${downloadResult.processedVideos.length} thumbnails`
+    )
+
+    // Step 3: Process thumbnails for face detection
+    const processingResult =
+      await thumbnailProcessingService.processThumbnailsForFaceDetection(
+        downloadResult.processedVideos,
+        input.embedding,
+        input.threshold || 0.7,
+        {
+          batchSize: 5,
+          maxConcurrency: 3,
+          skipOnError: true,
+          logProgress: true,
+        }
+      )
+
+    // Step 4: Cleanup
+    await videoFetchingService.cleanupThumbnails(downloadResult.processedVideos)
+
+    console.log(
+      `[API] Found ${processingResult.processedVideos.length} matching videos`
+    )
+
+    return c.json({
+      results: processingResult.processedVideos,
+      processedSites: fetchResult.processedSites,
+      errors: [
+        ...fetchResult.errors,
+        ...downloadResult.errors,
+        ...processingResult.errors,
+      ],
+    })
+  } catch (error) {
+    console.error(`[API] Video search error:`, error)
+    return c.json(
+      {
+        error: {
+          code: "INTERNAL_ERROR",
+          message: error instanceof Error ? error.message : "Unknown error",
+        },
+      },
+      500
+    )
   }
-
-  return c.notFound()
 })
 
 // Debug route to see all requests

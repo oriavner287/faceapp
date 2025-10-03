@@ -1,4 +1,5 @@
 // Core data models for the face video search application
+// Security-focused interfaces following security-expert.md guidelines
 // Validation constraints
 export const SIMILARITY_CONSTRAINTS = {
     MIN_THRESHOLD: 0.1,
@@ -6,10 +7,12 @@ export const SIMILARITY_CONSTRAINTS = {
     DEFAULT_THRESHOLD: 0.7,
     EMBEDDING_DIMENSIONS: [128, 512], // Common face embedding dimensions
 };
+// Import configuration for consistent values
+import { config } from "../config/index.js";
 export const FILE_CONSTRAINTS = {
-    MAX_SIZE_MB: 10,
-    MAX_SIZE_BYTES: 10 * 1024 * 1024,
-    ALLOWED_TYPES: ["image/jpeg", "image/png", "image/webp"],
+    MAX_SIZE_MB: Math.round(config.upload.maxFileSize / 1024 / 1024),
+    MAX_SIZE_BYTES: config.upload.maxFileSize,
+    ALLOWED_TYPES: config.upload.allowedMimeTypes,
     ALLOWED_EXTENSIONS: [".jpg", ".jpeg", ".png", ".webp"],
 };
 export const VIDEO_CONSTRAINTS = {
@@ -122,9 +125,95 @@ export class ValidationSchemas {
             errors,
         };
     }
+    // Security validation methods following security-expert.md guidelines
+    static validateImageSecurity(buffer) {
+        const errors = [];
+        // Check for malicious file signatures
+        if (buffer.length < 4) {
+            errors.push({
+                field: "file.content",
+                message: "File too small to be a valid image",
+                code: "MALICIOUS_FILE_DETECTED",
+                value: buffer.length,
+            });
+            return { isValid: false, errors };
+        }
+        // Validate magic numbers for security
+        const isValidJPEG = buffer[0] === 0xff && buffer[1] === 0xd8;
+        const isValidPNG = buffer[0] === 0x89 &&
+            buffer[1] === 0x50 &&
+            buffer[2] === 0x4e &&
+            buffer[3] === 0x47;
+        const isValidWebP = buffer.toString("ascii", 0, 4) === "RIFF" && buffer.length >= 12;
+        if (!isValidJPEG && !isValidPNG && !isValidWebP) {
+            errors.push({
+                field: "file.content",
+                message: "Invalid or potentially malicious file format",
+                code: "MALICIOUS_FILE_DETECTED",
+            });
+        }
+        // Check for embedded scripts or suspicious content
+        const fileContent = buffer.toString("ascii", 0, Math.min(1024, buffer.length));
+        const suspiciousPatterns = [
+            /<script/i,
+            /javascript:/i,
+            /vbscript:/i,
+            /onload=/i,
+            /onerror=/i,
+            /eval\(/i,
+        ];
+        for (const pattern of suspiciousPatterns) {
+            if (pattern.test(fileContent)) {
+                errors.push({
+                    field: "file.content",
+                    message: "File contains potentially malicious content",
+                    code: "MALICIOUS_FILE_DETECTED",
+                });
+                break;
+            }
+        }
+        return {
+            isValid: errors.length === 0,
+            errors,
+        };
+    }
+    static validateEncryptionMetadata(metadata) {
+        const errors = [];
+        if (!metadata.algorithm || typeof metadata.algorithm !== "string") {
+            errors.push({
+                field: "encryption.algorithm",
+                message: "Encryption algorithm is required",
+                code: "ENCRYPTION_FAILED",
+            });
+        }
+        if (!metadata.keyId || typeof metadata.keyId !== "string") {
+            errors.push({
+                field: "encryption.keyId",
+                message: "Encryption key ID is required",
+                code: "ENCRYPTION_FAILED",
+            });
+        }
+        if (!metadata.iv || typeof metadata.iv !== "string") {
+            errors.push({
+                field: "encryption.iv",
+                message: "Initialization vector is required",
+                code: "ENCRYPTION_FAILED",
+            });
+        }
+        if (metadata.expiresAt <= new Date()) {
+            errors.push({
+                field: "encryption.expiresAt",
+                message: "Encryption has expired",
+                code: "ENCRYPTION_FAILED",
+            });
+        }
+        return {
+            isValid: errors.length === 0,
+            errors,
+        };
+    }
 }
-// Export validation utilities
-export * from "../utils/validation.js";
+// Validation utilities are now handled by Zod schemas in contracts/api.ts
 // Export configuration
 export * from "../config/index.js";
 // Type guards for runtime type checking
@@ -170,5 +259,39 @@ export const TypeGuards = {
             obj.error &&
             typeof obj.error.code === "string" &&
             typeof obj.error.message === "string");
+    },
+    // Security-focused type guards
+    isAccessLogEntry(obj) {
+        return (obj &&
+            typeof obj === "object" &&
+            obj.timestamp instanceof Date &&
+            ["create", "read", "update", "delete", "encrypt", "decrypt"].includes(obj.operation) &&
+            typeof obj.sessionId === "string" &&
+            ["face_embedding", "image_data", "search_results"].includes(obj.dataType) &&
+            typeof obj.success === "boolean");
+    },
+    isSecurityEvent(obj) {
+        return (obj &&
+            typeof obj === "object" &&
+            obj.timestamp instanceof Date &&
+            [
+                "failed_auth",
+                "suspicious_request",
+                "rate_limit_exceeded",
+                "malicious_file",
+                "invalid_input",
+            ].includes(obj.eventType) &&
+            ["low", "medium", "high", "critical"].includes(obj.severity) &&
+            typeof obj.details === "object" &&
+            typeof obj.resolved === "boolean");
+    },
+    isEncryptionMetadata(obj) {
+        return (obj &&
+            typeof obj === "object" &&
+            typeof obj.algorithm === "string" &&
+            typeof obj.keyId === "string" &&
+            typeof obj.iv === "string" &&
+            obj.encryptedAt instanceof Date &&
+            obj.expiresAt instanceof Date);
     },
 };

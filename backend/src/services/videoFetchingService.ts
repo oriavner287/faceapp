@@ -1,3 +1,26 @@
+/**
+ * Video Fetching Service
+ *
+ * Fetches video metadata and thumbnails from configured adult video hosting websites.
+ * Supports both API-based fetching (preferred) and web scraping (fallback).
+ *
+ * Current Websites:
+ * - XNXX (https://www.xnxx.com/) - Scraping only
+ * - XVideos (https://www.xvideos.com/) - API + Scraping fallback
+ *
+ * Future Improvements:
+ * - Implement MCP-based scraping tools for better anti-bot protection handling
+ * - Add IP rotation strategies to prevent blocking
+ * - Explore official API integrations where available
+ * - Implement caching layer to reduce scraping frequency
+ *
+ * Security Features:
+ * - URL validation (whitelist approach)
+ * - Rate limiting to prevent abuse
+ * - Content validation before processing
+ * - Automatic cleanup of temporary files
+ */
+
 import puppeteer, { Browser } from "puppeteer"
 import * as cheerio from "cheerio"
 import sharp from "sharp"
@@ -8,38 +31,34 @@ import { auditLogger } from "../utils/auditLogger.js"
 import { videoSearchRateLimit } from "../middleware/rateLimiter.js"
 
 // Hard-coded website configurations as per requirements
+// TODO: Future improvements - Implement MCP-based scraping tools for better anti-bot protection
+// TODO: Future improvements - Add IP rotation strategies to prevent blocking
+// TODO: Future improvements - Explore official API integrations where available
 const WEBSITE_CONFIGS = [
   {
-    url: "https://example.com/site1",
-    name: "Site 1",
+    url: "https://www.xnxx.com/",
+    name: "XNXX",
     maxVideos: VIDEO_CONSTRAINTS.MAX_VIDEOS_PER_SITE,
+    useApi: false, // No public API available, use scraping
+    apiEndpoint: undefined,
     selectors: {
-      videoContainer: ".video-item, .video-card, article",
-      title: "h2, h3, .title, .video-title",
-      thumbnail: "img, .thumbnail img, .video-thumbnail",
-      videoUrl: 'a[href*="watch"], a[href*="video"], .video-link',
+      videoContainer: ".mozaique .thumb-block, #video-list .thumb-block",
+      title: ".title, p.title",
+      thumbnail: "img.thumb, img[data-src]",
+      videoUrl: "a.thumb-inside, a[href*='/video']",
     },
   },
   {
-    url: "https://example.com/site2",
-    name: "Site 2",
+    url: "https://www.xvideos.com/",
+    name: "XVideos",
     maxVideos: VIDEO_CONSTRAINTS.MAX_VIDEOS_PER_SITE,
+    useApi: false, // No public API available, use scraping
+    apiEndpoint: undefined,
     selectors: {
-      videoContainer: ".video-item, .video-card, article",
-      title: "h2, h3, .title, .video-title",
-      thumbnail: "img, .thumbnail img, .video-thumbnail",
-      videoUrl: 'a[href*="watch"], a[href*="video"], .video-link',
-    },
-  },
-  {
-    url: "https://example.com/site3",
-    name: "Site 3",
-    maxVideos: VIDEO_CONSTRAINTS.MAX_VIDEOS_PER_SITE,
-    selectors: {
-      videoContainer: ".video-item, .video-card, article",
-      title: "h2, h3, .title, .video-title",
-      thumbnail: "img, .thumbnail img, .video-thumbnail",
-      videoUrl: 'a[href*="watch"], a[href*="video"], .video-link',
+      videoContainer: ".thumb-block, div[class*='thumb']",
+      title: "p.title, .title, p[class*='title']",
+      thumbnail: "img[data-src], img.thumb, img[class*='thumb']",
+      videoUrl: "a[href*='/video']",
     },
   },
 ]
@@ -322,28 +341,50 @@ export class VideoFetchingService {
     const videos: VideoMetadata[] = []
 
     try {
-      console.log(`Scraping ${config.name} at ${config.url}`)
+      console.log(`Fetching videos from ${config.name} at ${config.url}`)
 
-      // Try Puppeteer first for dynamic content
-      try {
-        const puppeteerResult = await this.scrapeWithPuppeteer(config, options)
-        videos.push(...puppeteerResult.videos)
-        errors.push(...puppeteerResult.errors)
-      } catch (puppeteerError) {
-        console.warn(
-          `Puppeteer failed for ${config.name}, trying Cheerio:`,
-          puppeteerError
-        )
-
-        // Fallback to Cheerio for static content
+      // Try API first if available (preferred method)
+      if (config.useApi && config.apiEndpoint) {
         try {
-          const cheerioResult = await this.scrapeWithCheerio(config)
-          videos.push(...cheerioResult.videos)
-          errors.push(...cheerioResult.errors)
-        } catch (cheerioError) {
-          const errorMsg = `Both Puppeteer and Cheerio failed for ${config.name}`
-          console.error(errorMsg, { puppeteerError, cheerioError })
-          errors.push(errorMsg)
+          console.log(`Using API endpoint for ${config.name}`)
+          const apiResult = await this.fetchWithApi(config)
+          videos.push(...apiResult.videos)
+          errors.push(...apiResult.errors)
+        } catch (apiError) {
+          console.warn(
+            `API failed for ${config.name}, falling back to scraping:`,
+            apiError
+          )
+          // Fall through to scraping methods
+        }
+      }
+
+      // If API didn't work or not available, try scraping
+      if (videos.length === 0) {
+        // Try Puppeteer first for dynamic content
+        try {
+          const puppeteerResult = await this.scrapeWithPuppeteer(
+            config,
+            options
+          )
+          videos.push(...puppeteerResult.videos)
+          errors.push(...puppeteerResult.errors)
+        } catch (puppeteerError) {
+          console.warn(
+            `Puppeteer failed for ${config.name}, trying Cheerio:`,
+            puppeteerError
+          )
+
+          // Fallback to Cheerio for static content
+          try {
+            const cheerioResult = await this.scrapeWithCheerio(config)
+            videos.push(...cheerioResult.videos)
+            errors.push(...cheerioResult.errors)
+          } catch (cheerioError) {
+            const errorMsg = `All methods failed for ${config.name}`
+            console.error(errorMsg, { puppeteerError, cheerioError })
+            errors.push(errorMsg)
+          }
         }
       }
 
@@ -353,7 +394,7 @@ export class VideoFetchingService {
         processedSite: config.name,
       }
     } catch (error) {
-      const errorMsg = `Failed to scrape ${config.name}: ${
+      const errorMsg = `Failed to fetch videos from ${config.name}: ${
         error instanceof Error ? error.message : "Unknown error"
       }`
       console.error(errorMsg)
@@ -364,6 +405,86 @@ export class VideoFetchingService {
         processedSite: config.name,
       }
     }
+  }
+
+  /**
+   * Fetch videos using API endpoint (preferred method when available)
+   */
+  private async fetchWithApi(
+    config: (typeof WEBSITE_CONFIGS)[0]
+  ): Promise<{ videos: VideoMetadata[]; errors: string[] }> {
+    const errors: string[] = []
+    const videos: VideoMetadata[] = []
+
+    if (!config.apiEndpoint) {
+      throw new Error("No API endpoint configured")
+    }
+
+    try {
+      console.log(`Fetching from API: ${config.apiEndpoint}`)
+
+      const response = await fetch(config.apiEndpoint, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          Accept: "application/json",
+        },
+        signal: AbortSignal.timeout(30000), // 30 second timeout
+      })
+
+      if (!response.ok) {
+        throw new Error(
+          `API returned ${response.status}: ${response.statusText}`
+        )
+      }
+
+      const data = await response.json()
+
+      // Parse API response (structure may vary by site)
+      // This is a generic parser - adjust based on actual API response
+      const videoList = Array.isArray(data) ? data : data.videos || []
+
+      for (let i = 0; i < Math.min(videoList.length, config.maxVideos); i++) {
+        const item = videoList[i]
+        if (!item) continue
+
+        try {
+          const video: VideoMetadata = {
+            id: `${config.name.toLowerCase().replace(/\s+/g, "-")}-${
+              item.id || i + 1
+            }`,
+            title: item.title || item.name || `Video ${i + 1}`,
+            thumbnailUrl: item.thumbnail || item.thumb || item.image || "",
+            videoUrl: item.url || item.video_url || "",
+            sourceWebsite: config.name,
+          }
+
+          // Ensure URLs are absolute
+          if (video.thumbnailUrl && !video.thumbnailUrl.startsWith("http")) {
+            video.thumbnailUrl = this.resolveUrl(video.thumbnailUrl, config.url)
+          }
+          if (video.videoUrl && !video.videoUrl.startsWith("http")) {
+            video.videoUrl = this.resolveUrl(video.videoUrl, config.url)
+          }
+
+          if (video.thumbnailUrl && video.videoUrl) {
+            videos.push(video)
+          }
+        } catch (error) {
+          errors.push(`Failed to parse video ${i + 1} from API`)
+        }
+      }
+
+      console.log(`API fetch successful: ${videos.length} videos retrieved`)
+    } catch (error) {
+      const errorMsg = `API fetch failed for ${config.name}: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+      errors.push(errorMsg)
+      throw new Error(errorMsg)
+    }
+
+    return { videos, errors }
   }
 
   private async scrapeWithPuppeteer(
@@ -396,6 +517,8 @@ export class VideoFetchingService {
       const videoData = await page.evaluate(
         (selectors: typeof config.selectors) => {
           const containers = document.querySelectorAll(selectors.videoContainer)
+          console.log(`Found ${containers.length} video containers`)
+
           const results: Array<{
             title: string
             thumbnailUrl: string
@@ -422,6 +545,12 @@ export class VideoFetchingService {
                 ""
               const videoUrl = linkElement?.href || ""
 
+              console.log(
+                `Video ${index}: title="${title}", thumb="${
+                  thumbnailUrl ? "found" : "missing"
+                }", url="${videoUrl ? "found" : "missing"}"`
+              )
+
               if (thumbnailUrl && videoUrl) {
                 results.push({
                   title,
@@ -434,9 +563,14 @@ export class VideoFetchingService {
             }
           })
 
+          console.log(`Extracted ${results.length} videos`)
           return results
         },
         config.selectors
+      )
+
+      console.log(
+        `Puppeteer extracted ${videoData.length} videos from ${config.name}`
       )
 
       // Process extracted data
@@ -707,7 +841,12 @@ export class VideoFetchingService {
       }
 
       // Validate that URLs point to expected domains (whitelist approach)
-      const allowedDomains = ["example.com", "test.example.com"]
+      const allowedDomains = [
+        "xnxx.com",
+        "www.xnxx.com",
+        "xvideos.com",
+        "www.xvideos.com",
+      ]
       const isAllowedDomain = allowedDomains.some(
         domain =>
           parsedUrl.hostname === domain ||

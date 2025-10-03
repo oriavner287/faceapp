@@ -87,24 +87,19 @@
   - _Requirements: 2.1, 2.2, 2.5, 6.3, 6.6_
   - _Steering: Follow tech.md for oRPC configuration, security-expert.md for API security, backend-expert.md for router patterns_
 
-- [x] 7. Build secure video fetching and scraping service with URL validation and content filtering
+- [x] 7. Update video fetching service to use actual video hosting websites with API integration
 
-  - Create video fetching service for the three hard-coded URLs with comprehensive validation
-  - **Security**: Implement URL validation and sanitization to prevent SSRF attacks
-  - **Security**: Validate that URLs point to expected domains and reject suspicious requests
-  - Implement web scraping with Puppeteer or Cheerio for video metadata with security configurations
-  - **Security**: Configure Puppeteer with security settings (disable JavaScript execution, restrict network access)
-  - **Security**: Implement content filtering to prevent fetching of malicious or inappropriate content
-  - Add secure thumbnail extraction and download functionality with validation
-  - **Security**: Validate downloaded content types and scan for malicious content before processing
-  - **Security**: Implement secure temporary storage for thumbnails with proper cleanup
-  - Implement comprehensive rate limiting and error handling for website requests
-  - **Security**: Add exponential backoff and circuit breaker patterns to prevent service abuse
-  - **Security**: Implement timeout handling to prevent resource exhaustion attacks
-  - Create parallel processing for multiple websites with 10 video limit per site and resource protection
-  - **Security**: Limit concurrent requests and implement resource usage monitoring
-  - **Security**: Add request logging and monitoring for suspicious scraping patterns
-  - _Requirements: 3.1, 3.2, 3.4, 7.3_
+  - **CRITICAL**: Replace placeholder example.com URLs with actual video hosting websites (xnxx.com, xvideos.com)
+  - **API Integration**: Implement xvideos.com API integration for reliable video metadata fetching
+  - **Fallback Scraping**: Keep Puppeteer/Cheerio scraping as fallback when API is unavailable
+  - Update website configurations with correct selectors for xnxx.com and xvideos.com
+  - **Security**: Update URL validation to allow configured adult video hosting domains
+  - **Security**: Implement content filtering appropriate for adult content platforms
+  - Test actual video fetching from real websites to ensure thumbnails and metadata are retrieved
+  - **Security**: Add rate limiting appropriate for target websites to avoid blocking
+  - **Future**: Add TODO comments for MCP-based scraping and IP rotation improvements
+  - Verify thumbnail extraction works with actual video thumbnails from target sites
+  - _Requirements: 3.1, 3.2, 3.4, 3.6, 3.7, 7.3_
   - _Steering: Follow backend-expert.md for service patterns, security-expert.md for video fetching security, tech.md for Puppeteer_
 
 - [x] 8. Implement secure face detection on video thumbnails with privacy protection

@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { useCallback, useState, useRef } from "react"
+import { useCallback, useState, useRef, useEffect } from "react"
 import { useDropzone } from "react-dropzone"
 import {
   Card,
@@ -15,7 +15,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Spinner } from "@/components/ui/spinner"
 import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
-import { Camera, CheckCircle, Lock } from "lucide-react"
+import { Camera, CheckCircle, Lock, Globe } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
 import { type UploadResult } from "@/lib/actions"
 import { frontendConfig } from "@/lib/config"
 
@@ -23,6 +24,16 @@ import { frontendConfig } from "@/lib/config"
 const MAX_FILE_SIZE = frontendConfig.upload.maxFileSize // 10MB
 const ALLOWED_MIME_TYPES = frontendConfig.upload.allowedMimeTypes
 const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"]
+
+// Available websites for video search
+const AVAILABLE_WEBSITES = [
+  {
+    id: "xvideos",
+    name: "XVIDEOS",
+    url: "https://www.xvideos.com/tags/XVIDEOS",
+  },
+  { id: "xnxx", name: "XNXX", url: "https://www.xnxx.com/" },
+] as const
 
 // TypeScript interfaces for component props and state
 interface ImageUploadProps {
@@ -32,7 +43,9 @@ interface ImageUploadProps {
   onFileSelected?: (file: File) => void
   onPrivacyClick?: () => void
   onThresholdChange?: (threshold: number) => void
+  onWebsitesChange?: (websites: string[]) => void
   initialThreshold?: number
+  initialWebsites?: string[]
   className?: string
 }
 
@@ -184,7 +197,9 @@ export function ImageUpload({
   onFileSelected,
   onPrivacyClick,
   onThresholdChange,
+  onWebsitesChange,
   initialThreshold,
+  initialWebsites,
   className,
 }: ImageUploadProps) {
   // React hooks in proper order: data fetching, logic, primitives, constants, computed values
@@ -192,6 +207,9 @@ export function ImageUpload({
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [threshold, setThreshold] = useState(initialThreshold ?? 0.7)
+  const [selectedWebsites, setSelectedWebsites] = useState<string[]>(
+    initialWebsites ?? AVAILABLE_WEBSITES.map(w => w.id)
+  )
   const [validationState, setValidationState] = useState<ValidationState>({
     isValidating: false,
     isValid: false,
@@ -210,7 +228,8 @@ export function ImageUpload({
   const canUpload =
     hasFile &&
     validationState.isValid &&
-    validationState.securityStatus === "secure"
+    validationState.securityStatus === "secure" &&
+    selectedWebsites.length > 0
 
   // Event handlers with "handle" prefix
   const handleFileValidation = useCallback(async (file: File) => {
@@ -373,6 +392,29 @@ export function ImageUpload({
     [onThresholdChange]
   )
 
+  const handleWebsiteToggle = useCallback((websiteId: string) => {
+    setSelectedWebsites(prev => {
+      const newSelection = prev.includes(websiteId)
+        ? prev.filter(id => id !== websiteId)
+        : [...prev, websiteId]
+      return newSelection
+    })
+  }, [])
+
+  const handleSelectAllWebsites = useCallback(() => {
+    const allIds = AVAILABLE_WEBSITES.map(w => w.id)
+    setSelectedWebsites(allIds)
+  }, [])
+
+  const handleDeselectAllWebsites = useCallback(() => {
+    setSelectedWebsites([])
+  }, [])
+
+  // Notify parent component when websites change
+  useEffect(() => {
+    onWebsitesChange?.(selectedWebsites)
+  }, [selectedWebsites, onWebsitesChange])
+
   // React Dropzone configuration with security restrictions
   const { getRootProps, getInputProps, isDragActive, isDragReject } =
     useDropzone({
@@ -407,8 +449,8 @@ export function ImageUpload({
         const formData = new FormData(form)
 
         // Use API route instead of server action for better production compatibility
-        const response = await fetch('/api/upload', {
-          method: 'POST',
+        const response = await fetch("/api/upload", {
+          method: "POST",
           body: formData,
         })
 
@@ -535,6 +577,69 @@ export function ImageUpload({
             <AlertTitle>Upload Failed</AlertTitle>
             <AlertDescription>{uploadError}</AlertDescription>
           </Alert>
+        )}
+
+        {/* Website selection */}
+        {hasFile && validationState.isValid && (
+          <div className="space-y-3 p-4 bg-gray-50 rounded-lg border">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Globe className="h-4 w-4 text-muted-foreground" />
+                  <Label className="text-sm font-medium">Search Websites</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleSelectAllWebsites}
+                    disabled={isUploading}
+                    className="h-7 text-xs"
+                  >
+                    Select All
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleDeselectAllWebsites}
+                    disabled={isUploading}
+                    className="h-7 text-xs"
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {AVAILABLE_WEBSITES.map(website => (
+                  <div key={website.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`website-${website.id}`}
+                      checked={selectedWebsites.includes(website.id)}
+                      onCheckedChange={() => handleWebsiteToggle(website.id)}
+                      disabled={isUploading}
+                    />
+                    <label
+                      htmlFor={`website-${website.id}`}
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      {website.name}
+                    </label>
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                {selectedWebsites.length === 0
+                  ? "Please select at least one website to search"
+                  : `Searching ${selectedWebsites.length} website${
+                      selectedWebsites.length !== 1 ? "s" : ""
+                    }`}
+              </p>
+            </div>
+          </div>
         )}
 
         {/* Threshold slider */}

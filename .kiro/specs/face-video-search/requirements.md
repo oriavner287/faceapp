@@ -36,11 +36,13 @@ This feature enables users to upload a photo of a person's face and search for s
 
 #### Acceptance Criteria
 
-1. WHEN face embeddings are generated THEN the system SHALL fetch video data from exactly three hard-coded URLs: https://example.com/site1, https://example.com/site2, https://example.com/site3
+1. WHEN face embeddings are generated THEN the system SHALL fetch video data from configured adult video hosting websites (https://www.xnxx.com/ and https://www.xvideos.com/tags/) with publicly accessible video content
 2. WHEN fetching from each website THEN the system SHALL limit the search to a maximum of 10 videos per site
 3. WHEN video data is retrieved THEN the system SHALL extract or download video thumbnails for face analysis
 4. IF a website is unreachable or returns errors THEN the system SHALL continue processing other websites and log the error
 5. WHEN thumbnail extraction fails for a video THEN the system SHALL skip that video and continue with others
+6. WHEN scraping websites THEN the system SHALL use API endpoints where available instead of UI scraping to improve reliability and performance
+7. NOTE: Future improvements should address anti-scraping protections through MCP-based scraping tools or IP rotation strategies to prevent blocking
 
 ### Requirement 4
 

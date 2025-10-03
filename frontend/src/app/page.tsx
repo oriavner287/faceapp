@@ -40,7 +40,6 @@ import { useToast } from "@/hooks/use-toast"
 import { useSession } from "@/contexts/SessionProvider"
 import { useSearchHistory } from "@/hooks/useSearchHistory"
 import { generateThumbnailDataUrl } from "@/lib/searchHistory"
-import { initializeMockHistory } from "@/lib/mockSearchHistory"
 import {
   detectFaces,
   searchVideos,
@@ -299,14 +298,23 @@ export default function Home() {
   })
 
   const [similarityThreshold, setSimilarityThreshold] = useState(0.7)
+  const [selectedWebsites, setSelectedWebsites] = useState<string[]>([
+    "xvideos",
+    "xnxx",
+  ])
   const [isPrivacyDialogOpen, setIsPrivacyDialogOpen] = useState(false)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [isViewingHistory, setIsViewingHistory] = useState(false)
   const { toast } = useToast()
 
-  // Initialize mock history on first load (for demonstration)
+  // Clear any existing mock data from localStorage on mount
   useEffect(() => {
-    initializeMockHistory()
+    try {
+      localStorage.removeItem("face_search_history")
+      console.log("Cleared mock search history from localStorage")
+    } catch (error) {
+      console.error("Failed to clear localStorage:", error)
+    }
   }, [])
 
   // Filter and sort state
@@ -551,6 +559,10 @@ export default function Home() {
     setSimilarityThreshold(newThreshold)
   }, [])
 
+  const handleWebsitesChange = useCallback((websites: string[]) => {
+    setSelectedWebsites(websites)
+  }, [])
+
   const handleSortChange = useCallback((value: string) => {
     setSortBy(value as "similarity" | "title" | "source")
   }, [])
@@ -641,7 +653,9 @@ export default function Home() {
               onFileSelected={handleFileSelected}
               onPrivacyClick={() => setIsPrivacyDialogOpen(true)}
               onThresholdChange={handlePreUploadThresholdChange}
+              onWebsitesChange={handleWebsitesChange}
               initialThreshold={similarityThreshold}
+              initialWebsites={selectedWebsites}
             />
           )}
 

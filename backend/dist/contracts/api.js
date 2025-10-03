@@ -2,8 +2,10 @@
 // This file defines the type-safe contracts between frontend and backend
 // Security-focused validation following security-expert.md guidelines
 import { z } from "zod";
-// Security constants for validation
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+// Import configuration for consistent values
+import { config } from "../config/index.js";
+// Security constants for validation from configuration
+const MAX_FILE_SIZE = config.upload.maxFileSize;
 const MAX_STRING_LENGTH = 1000;
 const MAX_ARRAY_LENGTH = 1000;
 const VALID_SESSION_ID_PATTERN = /^[a-zA-Z0-9-_]{8,64}$/;
@@ -44,7 +46,7 @@ export const ConfigureSearchInputSchema = z.object({
 });
 export const FetchVideosInputSchema = z.object({
     embedding: z
-        .array(z.number().finite())
+        .array(z.number().refine(n => Number.isFinite(n), "Number must be finite"))
         .min(1, "Embedding cannot be empty")
         .max(MAX_ARRAY_LENGTH, "Embedding too large")
         .refine(arr => arr.every(n => Number.isFinite(n)), "All embedding values must be finite"),
@@ -83,17 +85,70 @@ export const DeleteSessionInputSchema = z.object({
         .max(64, "Session ID too long")
         .regex(VALID_SESSION_ID_PATTERN, "Invalid session ID format"),
 });
-// Security-focused error response schema
+// Security audit and logging schemas
+export const AccessLogEntrySchema = z.object({
+    timestamp: z.date(),
+    operation: z.enum([
+        "create",
+        "read",
+        "update",
+        "delete",
+        "encrypt",
+        "decrypt",
+    ]),
+    userId: z.string().optional(),
+    sessionId: z.string().min(8).max(64),
+    dataType: z.enum(["face_embedding", "image_data", "search_results"]),
+    success: z.boolean(),
+    errorCode: z.string().optional(),
+    ipAddress: z
+        .string()
+        .regex(/^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$|^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/, "Invalid IP address")
+        .optional(),
+    userAgent: z.string().max(500).optional(),
+});
+export const SecurityEventSchema = z.object({
+    timestamp: z.date(),
+    eventType: z.enum([
+        "failed_auth",
+        "suspicious_request",
+        "rate_limit_exceeded",
+        "malicious_file",
+        "invalid_input",
+    ]),
+    severity: z.enum(["low", "medium", "high", "critical"]),
+    sessionId: z.string().optional(),
+    ipAddress: z
+        .string()
+        .regex(/^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$|^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/, "Invalid IP address")
+        .optional(),
+    userAgent: z.string().max(500).optional(),
+    details: z.record(z.string(), z.unknown()),
+    resolved: z.boolean(),
+});
+export const EncryptionMetadataSchema = z.object({
+    algorithm: z.string().min(1).max(50),
+    keyId: z.string().min(1).max(100),
+    iv: z.string().min(1).max(100),
+    encryptedAt: z.date(),
+    expiresAt: z.date(),
+});
+// Security-focused error response schema with audit trail
 export const SecurityErrorSchema = z.object({
     code: z.string().max(50),
     message: z.string().max(MAX_STRING_LENGTH),
+    timestamp: z.string().optional(),
+    auditId: z.string().max(64).optional(), // For tracking security events
 });
 // Output type schemas with security error handling
 export const ProcessImageOutputSchema = z.object({
     success: z.boolean(),
     faceDetected: z.boolean(),
     searchId: z.string().max(64),
-    embedding: z.array(z.number().finite()).max(MAX_ARRAY_LENGTH).optional(),
+    embedding: z
+        .array(z.number().refine(n => Number.isFinite(n), "Number must be finite"))
+        .max(MAX_ARRAY_LENGTH)
+        .optional(),
     error: SecurityErrorSchema.optional(),
 });
 export const GetResultsOutputSchema = z.object({
@@ -111,8 +166,11 @@ export const GetResultsOutputSchema = z.object({
                 width: z.number(),
                 height: z.number(),
             }),
-            embedding: z.array(z.number()),
+            embedding: z.array(z.number()), // Raw embedding (will be encrypted)
+            encryptedEmbedding: z.string().optional(), // Encrypted version
             confidence: z.number(),
+            processedAt: z.date().optional(),
+            accessCount: z.number().optional(),
         })),
     })),
     status: z.string(),
@@ -134,8 +192,11 @@ export const ConfigureSearchOutputSchema = z.object({
                 width: z.number(),
                 height: z.number(),
             }),
-            embedding: z.array(z.number()),
+            embedding: z.array(z.number()), // Raw embedding (will be encrypted)
+            encryptedEmbedding: z.string().optional(), // Encrypted version
             confidence: z.number(),
+            processedAt: z.date().optional(),
+            accessCount: z.number().optional(),
         })),
     })),
 });
@@ -154,8 +215,11 @@ export const FetchVideosOutputSchema = z.object({
                 width: z.number(),
                 height: z.number(),
             }),
-            embedding: z.array(z.number()),
+            embedding: z.array(z.number()), // Raw embedding (will be encrypted)
+            encryptedEmbedding: z.string().optional(), // Encrypted version
             confidence: z.number(),
+            processedAt: z.date().optional(),
+            accessCount: z.number().optional(),
         })),
     })),
     processedSites: z.array(z.string()),
@@ -172,12 +236,16 @@ export const GetSessionOutputSchema = z.object({
         threshold: z.number(),
         createdAt: z.string(),
         expiresAt: z.string(),
+        deleteAfter: z.string(), // GDPR compliance timestamp
+        accessLog: z.array(AccessLogEntrySchema).optional(), // Audit trail
     })
         .optional(),
     error: z
         .object({
         code: z.string(),
         message: z.string(),
+        timestamp: z.string().optional(),
+        auditId: z.string().optional(),
     })
         .optional(),
 });

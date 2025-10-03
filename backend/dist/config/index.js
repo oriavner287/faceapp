@@ -70,7 +70,7 @@ export function getConfig() {
     };
     // File upload security configuration
     const upload = {
-        maxFileSize: parseIntSafe(process.env["MAX_FILE_SIZE"], 10485760, 1024, 52428800), // 10MB, min 1KB, max 50MB
+        maxFileSize: parseIntSafe(process.env["MAX_FILE_SIZE"], 5242880, 1024, 52428800), // 5MB, min 1KB, max 50MB
         allowedMimeTypes: parseArraySafe(process.env["ALLOWED_MIME_TYPES"], [
             "image/jpeg",
             "image/png",

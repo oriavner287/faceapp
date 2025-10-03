@@ -2,25 +2,32 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
-import { secureHeaders } from "hono/secure-headers";
+import { bodyLimit } from "hono/body-limit";
 import { RPCHandler } from "@orpc/server/fetch";
 import { appRouter } from "./routers/index.js";
 import { config, API_ENDPOINTS } from "./config/index.js";
-import { auditLogger, sanitizeErrors, createRateLimiter, } from "./middleware/security.js";
+import { auditLogger, sanitizeErrors, createRateLimiter, securityHeaders, } from "./middleware/security.js";
 const app = new Hono();
+// Body size limit middleware - must be before other middleware that parse body
+app.use("*", bodyLimit({
+    maxSize: config.upload.maxFileSize,
+    onError: c => {
+        return c.json({
+            success: false,
+            error: {
+                code: "PAYLOAD_TOO_LARGE",
+                message: `Request body too large. Maximum size is ${Math.round(config.upload.maxFileSize / 1024 / 1024)}MB`,
+            },
+        }, 413);
+    },
+}));
 // Security middleware following security-expert.md guidelines
 app.use("*", logger());
 app.use("*", auditLogger());
 app.use("*", sanitizeErrors());
 // Security headers middleware
 if (config.security.enableSecurityHeaders) {
-    app.use("*", secureHeaders({
-        strictTransportSecurity: "max-age=31536000; includeSubDomains; preload",
-        xFrameOptions: "DENY",
-        xContentTypeOptions: "nosniff",
-        referrerPolicy: "strict-origin-when-cross-origin",
-        crossOriginEmbedderPolicy: false, // Disable for face-api.js compatibility
-    }));
+    app.use("*", securityHeaders());
 }
 // Rate limiting middleware - different limits for different endpoints
 app.use("/api/face/*", createRateLimiter({
@@ -77,7 +84,10 @@ app.get("/test", c => {
 const rpcHandler = new RPCHandler(appRouter);
 // Handle oRPC requests
 app.all(`${API_ENDPOINTS.API_BASE}/*`, async (c) => {
+    console.log(`[oRPC] Handling request: ${c.req.method} ${c.req.url}`);
+    console.log(`[oRPC] Path: ${new URL(c.req.url).pathname}`);
     const result = await rpcHandler.handle(c.req.raw);
+    console.log(`[oRPC] Handler result - matched: ${result.matched}`);
     if (result.matched) {
         return result.response;
     }

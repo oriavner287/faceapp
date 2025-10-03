@@ -385,12 +385,26 @@ interface SearchHistoryItem {
 
 ### Video Data Fetching Approach
 
-**Decision**: Server-side scraping with thumbnail caching
+**Decision**: Server-side scraping with thumbnail caching from adult video hosting platforms
 **Rationale**:
 
 - Avoids CORS issues with external websites
 - Enables thumbnail pre-processing for face detection
 - Better control over rate limiting and error handling
+- Uses API endpoints where available (e.g., xvideos.com API) instead of UI scraping for better reliability
+- Implements fallback to Puppeteer/Cheerio scraping when APIs are unavailable
+
+**Target Websites**:
+
+- https://www.xnxx.com/ - Primary video source
+- https://www.xvideos.com/tags/ - Secondary video source with API support
+
+**Future Improvements**:
+
+- Implement MCP-based scraping tools for better anti-bot protection handling
+- Add IP rotation strategies to prevent blocking
+- Explore official API integrations where available
+- Implement caching layer to reduce scraping frequency
 
 ## Error Handling
 
