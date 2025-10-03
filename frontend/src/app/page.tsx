@@ -5,9 +5,6 @@ import {
   Upload,
   Search,
   Video,
-  CheckCircle2,
-  XCircle,
-  Clock,
   Lock,
   Timer,
   Shield,
@@ -19,7 +16,6 @@ import {
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -87,10 +83,10 @@ function ConnectionIndicator({
     const url = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"
     setBackendUrl(url)
 
-    // Check backend connection
+    // Check backend connection using /health endpoint
     const checkConnection = async () => {
       try {
-        const response = await fetch(url, { method: "HEAD" })
+        const response = await fetch(`${url}/health`, { method: "GET" })
         setIsConnected(response.ok)
       } catch {
         setIsConnected(false)
@@ -213,13 +209,16 @@ function ConnectionIndicator({
 // Search progress component
 function SearchProgress({
   phase,
-  progress,
   currentStep,
 }: {
   phase: SearchState["phase"]
-  progress: number
   currentStep: string
 }) {
+  // Hide progress section when idle, completed, or error
+  if (phase === "idle" || phase === "completed" || phase === "error") {
+    return null
+  }
+
   const getPhaseDescription = () => {
     switch (phase) {
       case "uploading":
@@ -228,12 +227,6 @@ function SearchProgress({
         return "Detecting faces in your image..."
       case "searching":
         return "Searching videos for similar faces..."
-      case "completed":
-        return "Search completed successfully!"
-      case "error":
-        return "An error occurred during processing"
-      default:
-        return "Ready to start search"
     }
   }
 
@@ -245,18 +238,7 @@ function SearchProgress({
         return <Search className="h-5 w-5" />
       case "searching":
         return <Video className="h-5 w-5" />
-      case "completed":
-        return <CheckCircle2 className="h-5 w-5 text-green-600" />
-      case "error":
-        return <XCircle className="h-5 w-5 text-red-600" />
-      default:
-        return <Clock className="h-5 w-5" />
     }
-  }
-
-  // Hide progress section when idle, completed, or error
-  if (phase === "idle" || phase === "completed" || phase === "error") {
-    return null
   }
 
   return (
@@ -274,16 +256,12 @@ function SearchProgress({
               )}
             </div>
           </div>
-          <Badge variant={phase === "error" ? "destructive" : "secondary"}>
-            {phase === "error" ? "Failed" : "Processing"}
-          </Badge>
+          <Badge variant="secondary">Processing</Badge>
         </div>
 
-        {phase !== "error" && (
-          <div className="flex justify-center">
-            <LoadingSpinner size="sm" />
-          </div>
-        )}
+        <div className="flex justify-center">
+          <LoadingSpinner size="sm" />
+        </div>
       </CardContent>
     </Card>
   )
@@ -599,7 +577,6 @@ export default function Home() {
           {/* Search progress */}
           <SearchProgress
             phase={searchState.phase}
-            progress={searchState.progress}
             currentStep={searchState.currentStep}
           />
 
@@ -613,11 +590,11 @@ export default function Home() {
 
           {/* New search button - only show when completed with results */}
           {searchState.phase === "completed" && (
-            <div className="flex justify-center items-center py-4">
+            <div className="flex justify-center items-center -mb-2">
               <Button
                 onClick={handleNewSearch}
                 size="lg"
-                className="min-w-[240px] h-12 text-base font-semibold"
+                className="min-w-[240px] h-12 text-base font-semibold px-6"
               >
                 <Upload className="h-5 w-5 mr-2" />
                 Start New Search
@@ -628,8 +605,8 @@ export default function Home() {
 
         {/* Results section - full width with margins */}
         {searchState.searchResults.length > 0 ? (
-          <div className="w-full px-8 pt-4 pb-8">
-            <div className="pb-6">
+          <div className="w-full px-8 pt-1 pb-8">
+            <div className="pb-2">
               <Separator />
             </div>
 
