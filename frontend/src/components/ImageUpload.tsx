@@ -13,6 +13,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Spinner } from "@/components/ui/spinner"
+import { Slider } from "@/components/ui/slider"
+import { Label } from "@/components/ui/label"
+import { Camera, CheckCircle, Lock } from "lucide-react"
 import { uploadImage, type UploadResult } from "@/lib/actions"
 import { frontendConfig } from "@/lib/config"
 
@@ -25,7 +28,11 @@ const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"]
 interface ImageUploadProps {
   onUploadSuccess?: (result: UploadResult["data"]) => void
   onUploadError?: (error: string) => void
+  onUploadStart?: () => void
+  onFileSelected?: () => void
   onPrivacyClick?: () => void
+  onThresholdChange?: (threshold: number) => void
+  initialThreshold?: number
   className?: string
 }
 
@@ -173,13 +180,18 @@ function SubmitButton({
 export function ImageUpload({
   onUploadSuccess,
   onUploadError,
+  onUploadStart,
+  onFileSelected,
   onPrivacyClick,
+  onThresholdChange,
+  initialThreshold,
   className,
 }: ImageUploadProps) {
   // React hooks in proper order: data fetching, logic, primitives, constants, computed values
   const formRef = useRef<HTMLFormElement>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [threshold, setThreshold] = useState(initialThreshold ?? 0.7)
   const [validationState, setValidationState] = useState<ValidationState>({
     isValidating: false,
     isValid: false,
@@ -293,6 +305,12 @@ export function ImageUpload({
         file.size,
         "bytes"
       )
+
+      // Notify parent that a file has been selected (clears errors)
+      onFileSelected?.()
+
+      // Clear previous errors when starting a new upload
+      setUploadError(null)
       setPreviewState({ file, previewUrl: null })
 
       const isValid = await handleFileValidation(file)
@@ -303,7 +321,7 @@ export function ImageUpload({
         console.log("[ImageUpload] File validation passed")
       }
     },
-    [handleFileValidation]
+    [handleFileValidation, onFileSelected]
   )
 
   const handleSecurityCheck = useCallback(
@@ -346,6 +364,15 @@ export function ImageUpload({
     })
   }, [previewState.previewUrl])
 
+  const handleThresholdChange = useCallback(
+    (value: number[]) => {
+      const newThreshold = value[0] ?? 0.7
+      setThreshold(newThreshold)
+      onThresholdChange?.(newThreshold)
+    },
+    [onThresholdChange]
+  )
+
   // React Dropzone configuration with security restrictions
   const { getRootProps, getInputProps, isDragActive, isDragReject } =
     useDropzone({
@@ -371,6 +398,9 @@ export function ImageUpload({
       setIsUploading(true)
       setUploadError(null)
 
+      // Notify parent that upload is starting
+      onUploadStart?.()
+
       try {
         // Get FormData from the form element
         const form = e.currentTarget
@@ -394,7 +424,7 @@ export function ImageUpload({
         setIsUploading(false)
       }
     },
-    [canUpload, onUploadSuccess, onUploadError, handleRemoveFile]
+    [canUpload, onUploadSuccess, onUploadError, onUploadStart, handleRemoveFile]
   )
 
   return (
@@ -443,7 +473,8 @@ export function ImageUpload({
                 </p>
                 <div className="flex items-center justify-center mt-2">
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
-                    ✓ Security validated
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Security validated
                   </span>
                 </div>
               </div>
@@ -461,7 +492,7 @@ export function ImageUpload({
             </div>
           ) : (
             <div className="space-y-2">
-              <div className="text-4xl text-gray-400">📷</div>
+              <Camera className="h-12 w-12 mx-auto text-gray-400" />
               <div>
                 {isDragActive ? (
                   isDragReject ? (
@@ -500,6 +531,36 @@ export function ImageUpload({
           </Alert>
         )}
 
+        {/* Threshold slider */}
+        {hasFile && validationState.isValid && (
+          <div className="space-y-3 p-4 bg-gray-50 rounded-lg border">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="threshold" className="text-sm font-medium">
+                  Similarity Threshold
+                </Label>
+                <span className="text-sm font-semibold text-blue-600">
+                  {threshold.toFixed(2)}
+                </span>
+              </div>
+              <Slider
+                id="threshold"
+                min={0.3}
+                max={0.95}
+                step={0.05}
+                value={[threshold]}
+                onValueChange={handleThresholdChange}
+                disabled={isUploading}
+                className="w-full"
+              />
+              <p className="text-xs text-muted-foreground">
+                Higher values require closer matches. Lower values return more
+                results but may be less accurate.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Upload form */}
         {hasFile && validationState.isValid && (
           <form ref={formRef} onSubmit={handleFormSubmit} className="space-y-4">
@@ -531,7 +592,7 @@ export function ImageUpload({
               onClick={onPrivacyClick}
               className="text-xs text-muted-foreground hover:text-foreground transition-colors inline-flex items-center space-x-1 underline decoration-dotted underline-offset-2"
             >
-              <span>🔒</span>
+              <Lock className="h-3 w-3" />
               <span>Privacy & Security</span>
             </button>
           </div>

@@ -1,12 +1,34 @@
 "use client"
 
-import React, { useState, useCallback, useEffect } from "react"
+import React, { useState, useCallback, useEffect, useMemo } from "react"
+import {
+  Upload,
+  Search,
+  Video,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Lock,
+  Timer,
+  Shield,
+  Scale,
+  Filter,
+  SortAsc,
+  SortDesc,
+} from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -15,8 +37,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { ImageUpload } from "@/components/ImageUpload"
-import SearchResults from "@/components/SearchResults"
 import { LoadingSpinner } from "@/components/LoadingSpinner"
+import { Toaster } from "@/components/ui/toaster"
+import { useToast } from "@/hooks/use-toast"
 import { useSession } from "@/contexts/SessionProvider"
 import {
   detectFaces,
@@ -217,21 +240,22 @@ function SearchProgress({
   const getPhaseIcon = () => {
     switch (phase) {
       case "uploading":
-        return "📤"
+        return <Upload className="h-5 w-5" />
       case "detecting":
-        return "🔍"
+        return <Search className="h-5 w-5" />
       case "searching":
-        return "🎬"
+        return <Video className="h-5 w-5" />
       case "completed":
-        return "✅"
+        return <CheckCircle2 className="h-5 w-5 text-green-600" />
       case "error":
-        return "❌"
+        return <XCircle className="h-5 w-5 text-red-600" />
       default:
-        return "⏳"
+        return <Clock className="h-5 w-5" />
     }
   }
 
-  if (phase === "idle") {
+  // Hide progress section when idle, completed, or error
+  if (phase === "idle" || phase === "completed" || phase === "error") {
     return null
   }
 
@@ -240,7 +264,7 @@ function SearchProgress({
       <CardContent className="pt-6 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <span className="text-2xl">{getPhaseIcon()}</span>
+            {getPhaseIcon()}
             <div>
               <p className="font-medium text-sm">{getPhaseDescription()}</p>
               {currentStep && (
@@ -250,32 +274,12 @@ function SearchProgress({
               )}
             </div>
           </div>
-          <Badge
-            variant={
-              phase === "completed"
-                ? "default"
-                : phase === "error"
-                ? "destructive"
-                : "secondary"
-            }
-          >
-            {phase === "error"
-              ? "Failed"
-              : phase === "completed"
-              ? "Complete"
-              : "Processing"}
+          <Badge variant={phase === "error" ? "destructive" : "secondary"}>
+            {phase === "error" ? "Failed" : "Processing"}
           </Badge>
         </div>
 
-        <div className="space-y-2">
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Progress</span>
-            <span>{progress}%</span>
-          </div>
-          <Progress value={progress} className="h-1.5" />
-        </div>
-
-        {phase !== "completed" && phase !== "error" && (
+        {phase !== "error" && (
           <div className="flex justify-center">
             <LoadingSpinner size="sm" />
           </div>
@@ -293,7 +297,6 @@ export default function Home() {
     createSession,
     updateSessionResults,
     updateSessionStatus,
-    updateThreshold,
     clearSession,
   } = useSession()
 
@@ -307,6 +310,74 @@ export default function Home() {
 
   const [similarityThreshold, setSimilarityThreshold] = useState(0.7)
   const [isPrivacyDialogOpen, setIsPrivacyDialogOpen] = useState(false)
+  const { toast } = useToast()
+
+  // Filter and sort state
+  const [sortBy, setSortBy] = useState<"similarity" | "title" | "source">(
+    "similarity"
+  )
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
+  const [filterBy, setFilterBy] = useState<"all" | "high" | "medium" | "low">(
+    "all"
+  )
+
+  // Helper functions for filtering
+  const getSimilarityCategory = (score: number): "high" | "medium" | "low" => {
+    if (score >= 0.8) return "high"
+    if (score >= 0.6) return "medium"
+    return "low"
+  }
+
+  // Filtered and sorted results
+  const processedResults = useMemo(() => {
+    let filtered = searchState.searchResults
+
+    // Apply similarity filter
+    if (filterBy !== "all") {
+      filtered = filtered.filter(
+        result => getSimilarityCategory(result.similarityScore) === filterBy
+      )
+    }
+
+    // Sort results
+    const sorted = [...filtered].sort((a, b) => {
+      let comparison = 0
+
+      switch (sortBy) {
+        case "similarity":
+          comparison = a.similarityScore - b.similarityScore
+          break
+        case "title":
+          comparison = a.title.localeCompare(b.title)
+          break
+        case "source":
+          comparison = a.sourceWebsite.localeCompare(b.sourceWebsite)
+          break
+        default:
+          comparison = 0
+      }
+
+      return sortOrder === "desc" ? -comparison : comparison
+    })
+
+    return sorted
+  }, [searchState.searchResults, filterBy, sortBy, sortOrder])
+
+  // Result stats for filter counts
+  const resultStats = useMemo(() => {
+    const total = searchState.searchResults.length
+    const high = searchState.searchResults.filter(
+      r => getSimilarityCategory(r.similarityScore) === "high"
+    ).length
+    const medium = searchState.searchResults.filter(
+      r => getSimilarityCategory(r.similarityScore) === "medium"
+    ).length
+    const low = searchState.searchResults.filter(
+      r => getSimilarityCategory(r.similarityScore) === "low"
+    ).length
+
+    return { total, high, medium, low }
+  }, [searchState.searchResults])
 
   // Event handlers
   const handleUploadSuccess = useCallback(
@@ -317,14 +388,17 @@ export default function Home() {
         // Create new session
         const sessionId = await createSession()
 
-        // Update search state
-        setSearchState(prev => ({
-          ...prev,
-          phase: "detecting",
-          progress: 25,
-          currentStep: "Analyzing uploaded image for faces",
-          uploadedFileId: uploadData.fileId,
-        }))
+        // Update search state and clear any previous errors
+        setSearchState(prev => {
+          const { error, ...rest } = prev
+          return {
+            ...rest,
+            phase: "detecting",
+            progress: 25,
+            currentStep: "Analyzing uploaded image for faces",
+            uploadedFileId: uploadData.fileId,
+          }
+        })
 
         // Detect faces in uploaded image
         const formData = new FormData()
@@ -394,6 +468,14 @@ export default function Home() {
         // Update session with results
         updateSessionResults(sessionId, results)
         updateSessionStatus(sessionId, "completed")
+
+        // Show success toast
+        toast({
+          title: "Search Complete!",
+          description: `Found ${results.length} matching video${
+            results.length !== 1 ? "s" : ""
+          } with similar faces.`,
+        })
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Search failed"
@@ -420,47 +502,42 @@ export default function Home() {
     }))
   }, [])
 
-  const handleThresholdChange = useCallback(
-    async (newThreshold: number) => {
-      setSimilarityThreshold(newThreshold)
-
-      if (currentSession?.id && searchState.faceEmbedding) {
-        try {
-          await updateThreshold(currentSession.id, newThreshold)
-
-          // Re-run search with new threshold
-          const searchFormData = new FormData()
-          searchFormData.append(
-            "embedding",
-            JSON.stringify(searchState.faceEmbedding)
-          )
-          searchFormData.append("threshold", newThreshold.toString())
-
-          const searchResult = await searchVideos(searchFormData)
-
-          if (searchResult.success && searchResult.data) {
-            const results = searchResult.data.results.map(result => ({
-              ...result,
-              faceCount: result.detectedFaces?.length || 0,
-            }))
-            setSearchState(prev => ({
-              ...prev,
-              searchResults: results,
-            }))
-            updateSessionResults(currentSession.id, results)
-          }
-        } catch (error) {
-          console.error("Failed to update threshold:", error)
-        }
+  const handleUploadStart = useCallback(() => {
+    // Clear any previous errors when starting a new upload
+    setSearchState(prev => {
+      const { error, ...rest } = prev
+      return {
+        ...rest,
+        phase: "uploading",
+        progress: 10,
+        currentStep: "Uploading image...",
       }
-    },
-    [
-      currentSession,
-      searchState.faceEmbedding,
-      updateThreshold,
-      updateSessionResults,
-    ]
-  )
+    })
+  }, [])
+
+  const handleFileSelected = useCallback(() => {
+    // Clear any previous errors when a new file is selected
+    setSearchState(prev => {
+      const { error, ...rest } = prev
+      return rest
+    })
+  }, [])
+
+  const handlePreUploadThresholdChange = useCallback((newThreshold: number) => {
+    setSimilarityThreshold(newThreshold)
+  }, [])
+
+  const handleSortChange = useCallback((value: string) => {
+    setSortBy(value as "similarity" | "title" | "source")
+  }, [])
+
+  const handleSortOrderToggle = useCallback(() => {
+    setSortOrder(prev => (prev === "asc" ? "desc" : "asc"))
+  }, [])
+
+  const handleFilterChange = useCallback((value: string) => {
+    setFilterBy(value as "all" | "high" | "medium" | "low")
+  }, [])
 
   const handleNewSearch = useCallback(() => {
     setSearchState({
@@ -503,14 +580,21 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Main content */}
-        <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-          {/* Image upload section */}
-          <ImageUpload
-            onUploadSuccess={handleUploadSuccess}
-            onUploadError={handleUploadError}
-            onPrivacyClick={() => setIsPrivacyDialogOpen(true)}
-          />
+        {/* Upload section - centered with max-w-2xl */}
+        <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
+          {/* Image upload section - hide after completion */}
+          {searchState.phase !== "completed" && (
+            <ImageUpload
+              key={searchState.phase === "idle" ? "reset" : "active"}
+              onUploadSuccess={handleUploadSuccess}
+              onUploadError={handleUploadError}
+              onUploadStart={handleUploadStart}
+              onFileSelected={handleFileSelected}
+              onPrivacyClick={() => setIsPrivacyDialogOpen(true)}
+              onThresholdChange={handlePreUploadThresholdChange}
+              initialThreshold={similarityThreshold}
+            />
+          )}
 
           {/* Search progress */}
           <SearchProgress
@@ -527,59 +611,128 @@ export default function Home() {
             </Alert>
           )}
 
-          {/* New search button */}
-          {(searchState.phase === "completed" ||
-            searchState.phase === "error") && (
-            <div className="flex justify-center">
+          {/* New search button - only show when completed with results */}
+          {searchState.phase === "completed" && (
+            <div className="flex justify-center items-center py-4">
               <Button
                 onClick={handleNewSearch}
-                variant="outline"
                 size="lg"
-                className="min-w-[200px]"
+                className="min-w-[240px] h-12 text-base font-semibold"
               >
+                <Upload className="h-5 w-5 mr-2" />
                 Start New Search
               </Button>
             </div>
           )}
-
-          {/* Search results section */}
-          {searchState.searchResults.length > 0 ? (
-            <>
-              <div className="py-4">
-                <Separator />
-              </div>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-semibold">
-                    Search Results ({searchState.searchResults.length})
-                  </h2>
-                </div>
-                <SearchResults
-                  results={searchState.searchResults}
-                  isLoading={false}
-                  error={null}
-                  onThresholdChange={handleThresholdChange}
-                  currentThreshold={similarityThreshold}
-                />
-              </div>
-            </>
-          ) : searchState.phase === "completed" ? (
-            <div className="text-center py-12">
-              <div className="text-5xl mb-3">🔍</div>
-              <p className="text-muted-foreground text-sm">
-                No similar faces found. Try uploading a different image or
-                adjusting the similarity threshold.
-              </p>
-            </div>
-          ) : searchState.phase === "idle" ? (
-            <div className="text-center py-12">
-              <div className="text-5xl mb-3">📸</div>
-              <p className="text-muted-foreground text-sm">
-                Upload an image to start searching for similar faces
-              </p>
-            </div>
-          ) : null}
         </div>
+
+        {/* Results section - full width with margins */}
+        {searchState.searchResults.length > 0 ? (
+          <div className="w-full px-8 pt-4 pb-8">
+            <div className="pb-6">
+              <Separator />
+            </div>
+
+            {/* Filter and sort controls */}
+            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+              <div className="flex items-center space-x-2">
+                <Filter className="h-4 w-4" />
+                <span className="text-sm font-medium">Filter:</span>
+                <Select value={filterBy} onValueChange={handleFilterChange}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">
+                      All ({resultStats.total})
+                    </SelectItem>
+                    <SelectItem value="high">
+                      High ({resultStats.high})
+                    </SelectItem>
+                    <SelectItem value="medium">
+                      Medium ({resultStats.medium})
+                    </SelectItem>
+                    <SelectItem value="low">Low ({resultStats.low})</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium">Sort by:</span>
+                <Select value={sortBy} onValueChange={handleSortChange}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="similarity">Similarity</SelectItem>
+                    <SelectItem value="title">Title</SelectItem>
+                    <SelectItem value="source">Source</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSortOrderToggle}
+                  className="px-2"
+                >
+                  {sortOrder === "desc" ? (
+                    <SortDesc className="h-4 w-4" />
+                  ) : (
+                    <SortAsc className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {processedResults.map(result => (
+                <Card key={result.id} className="overflow-hidden">
+                  <div className="aspect-video relative bg-muted">
+                    {result.thumbnailUrl && (
+                      <img
+                        src={result.thumbnailUrl}
+                        alt={`Thumbnail for ${result.title}`}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    )}
+                    <div className="absolute top-2 right-2">
+                      <Badge variant="default">
+                        {(result.similarityScore * 100).toFixed(0)}%
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="p-4">
+                    <h3 className="font-semibold text-sm line-clamp-2 mb-2">
+                      {result.title}
+                    </h3>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      {result.sourceWebsite} • {result.faceCount} face
+                      {result.faceCount !== 1 ? "s" : ""}
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => window.open(result.videoUrl, "_blank")}
+                    >
+                      Watch Video
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+        ) : searchState.phase === "completed" ? (
+          <div className="max-w-4xl mx-auto px-4 text-center py-12">
+            <Search className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+            <p className="text-muted-foreground text-sm">
+              No similar faces found. Try uploading a different image or
+              adjusting the similarity threshold.
+            </p>
+          </div>
+        ) : null}
       </main>
 
       {/* Privacy & Security Dialog */}
@@ -587,7 +740,7 @@ export default function Home() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center space-x-2">
-              <span className="text-2xl">🔒</span>
+              <Lock className="h-5 w-5" />
               <span>Privacy & Security</span>
             </DialogTitle>
             <DialogDescription>
@@ -597,8 +750,8 @@ export default function Home() {
           <div className="space-y-4 py-4">
             <div className="space-y-3">
               <div className="flex items-start space-x-3">
-                <div className="text-green-600 text-lg flex-shrink-0 mt-0.5">
-                  ⏱️
+                <div className="text-green-600 flex-shrink-0 mt-0.5">
+                  <Timer className="h-5 w-5" />
                 </div>
                 <div>
                   <h4 className="font-semibold text-sm mb-1">
@@ -615,8 +768,8 @@ export default function Home() {
               <Separator />
 
               <div className="flex items-start space-x-3">
-                <div className="text-green-600 text-lg flex-shrink-0 mt-0.5">
-                  🔐
+                <div className="text-green-600 flex-shrink-0 mt-0.5">
+                  <Lock className="h-5 w-5" />
                 </div>
                 <div>
                   <h4 className="font-semibold text-sm mb-1">Encrypted Data</h4>
@@ -631,8 +784,8 @@ export default function Home() {
               <Separator />
 
               <div className="flex items-start space-x-3">
-                <div className="text-green-600 text-lg flex-shrink-0 mt-0.5">
-                  🛡️
+                <div className="text-green-600 flex-shrink-0 mt-0.5">
+                  <Shield className="h-5 w-5" />
                 </div>
                 <div>
                   <h4 className="font-semibold text-sm mb-1">
@@ -649,8 +802,8 @@ export default function Home() {
               <Separator />
 
               <div className="flex items-start space-x-3">
-                <div className="text-green-600 text-lg flex-shrink-0 mt-0.5">
-                  ⚖️
+                <div className="text-green-600 flex-shrink-0 mt-0.5">
+                  <Scale className="h-5 w-5" />
                 </div>
                 <div>
                   <h4 className="font-semibold text-sm mb-1">
@@ -681,6 +834,9 @@ export default function Home() {
         sessionId={currentSession?.id}
         searchPhase={searchState.phase}
       />
+
+      {/* Toast notifications */}
+      <Toaster />
     </>
   )
 }

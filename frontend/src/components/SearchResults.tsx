@@ -442,168 +442,126 @@ function SearchResults({
   // Main results display
   return (
     <div className={cn("space-y-6", className)}>
-      {/* Results header with controls */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <CardTitle>Search Results</CardTitle>
-              <CardDescription>
-                Found {resultStats.total} videos with similar faces
-              </CardDescription>
-            </div>
+      {/* Filter and sort controls */}
+      <div className="flex flex-col sm:flex-row gap-4 mb-6">
+        <div className="flex items-center space-x-2">
+          <Filter className="h-4 w-4" />
+          <span className="text-sm font-medium">Filter:</span>
+          <Select value={filterBy} onValueChange={handleFilterChange}>
+            <SelectTrigger className="w-32">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All ({resultStats.total})</SelectItem>
+              <SelectItem value="high">High ({resultStats.high})</SelectItem>
+              <SelectItem value="medium">
+                Medium ({resultStats.medium})
+              </SelectItem>
+              <SelectItem value="low">Low ({resultStats.low})</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-            {/* Similarity threshold control */}
-            {onThresholdChange && (
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium">Threshold:</span>
-                <Select
-                  value={currentThreshold.toString()}
-                  onValueChange={handleThresholdChange}
-                >
-                  <SelectTrigger className="w-20">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SIMILARITY_THRESHOLDS.map(threshold => (
-                      <SelectItem key={threshold} value={threshold.toString()}>
-                        {threshold.toFixed(1)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+        <div className="flex items-center space-x-2">
+          <span className="text-sm font-medium">Sort by:</span>
+          <Select value={sortBy} onValueChange={handleSortChange}>
+            <SelectTrigger className="w-32">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="similarity">Similarity</SelectItem>
+              <SelectItem value="title">Title</SelectItem>
+              <SelectItem value="source">Source</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSortOrderToggle}
+            className="px-2"
+          >
+            {sortOrder === "desc" ? (
+              <SortDesc className="h-4 w-4" />
+            ) : (
+              <SortAsc className="h-4 w-4" />
             )}
-          </div>
-        </CardHeader>
+          </Button>
+        </div>
+      </div>
 
-        <CardContent>
-          {/* Filter and sort controls */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="flex items-center space-x-2">
-              <Filter className="h-4 w-4" />
-              <span className="text-sm font-medium">Filter:</span>
-              <Select value={filterBy} onValueChange={handleFilterChange}>
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All ({resultStats.total})</SelectItem>
-                  <SelectItem value="high">
-                    High ({resultStats.high})
-                  </SelectItem>
-                  <SelectItem value="medium">
-                    Medium ({resultStats.medium})
-                  </SelectItem>
-                  <SelectItem value="low">Low ({resultStats.low})</SelectItem>
-                </SelectContent>
-              </Select>
+      {/* Results grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {sortedResults.map(result => (
+          <Card key={result.id} className="overflow-hidden">
+            <div className="aspect-video relative bg-muted">
+              {result.thumbnailUrl && (
+                <img
+                  src={result.thumbnailUrl}
+                  alt={`Thumbnail for ${result.title}`}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                  onError={e => {
+                    // Security: Handle image load errors gracefully
+                    const target = e.target as HTMLImageElement
+                    target.style.display = "none"
+                  }}
+                />
+              )}
+
+              {/* Similarity score overlay */}
+              <div className="absolute top-2 right-2">
+                <Badge
+                  variant={getSimilarityBadgeVariant(result.similarityScore)}
+                >
+                  {(result.similarityScore * 100).toFixed(0)}%
+                </Badge>
+              </div>
             </div>
 
-            <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium">Sort by:</span>
-              <Select value={sortBy} onValueChange={handleSortChange}>
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="similarity">Similarity</SelectItem>
-                  <SelectItem value="title">Title</SelectItem>
-                  <SelectItem value="source">Source</SelectItem>
-                </SelectContent>
-              </Select>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm line-clamp-2">
+                {result.title}
+              </CardTitle>
+              <CardDescription className="text-xs">
+                {result.sourceWebsite} • {result.faceCount} face
+                {result.faceCount !== 1 ? "s" : ""}
+              </CardDescription>
+            </CardHeader>
 
+            <CardFooter className="pt-0">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleSortOrderToggle}
-                className="px-2"
+                className="w-full"
+                onClick={() =>
+                  handleVideoLinkClick(result.videoUrl, result.title)
+                }
               >
-                {sortOrder === "desc" ? (
-                  <SortDesc className="h-4 w-4" />
-                ) : (
-                  <SortAsc className="h-4 w-4" />
-                )}
+                <ExternalLink className="h-3 w-3 mr-1" />
+                Watch Video
               </Button>
-            </div>
-          </div>
+            </CardFooter>
+          </Card>
+        ))}
+      </div>
 
-          {/* Results grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {sortedResults.map(result => (
-              <Card key={result.id} className="overflow-hidden">
-                <div className="aspect-video relative bg-muted">
-                  {result.thumbnailUrl && (
-                    <img
-                      src={result.thumbnailUrl}
-                      alt={`Thumbnail for ${result.title}`}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                      onError={e => {
-                        // Security: Handle image load errors gracefully
-                        const target = e.target as HTMLImageElement
-                        target.style.display = "none"
-                      }}
-                    />
-                  )}
+      {/* Load more button */}
+      {hasMoreResults && (
+        <div className="flex justify-center mt-6">
+          <Button variant="outline" onClick={handleLoadMore}>
+            Load More Results
+          </Button>
+        </div>
+      )}
 
-                  {/* Similarity score overlay */}
-                  <div className="absolute top-2 right-2">
-                    <Badge
-                      variant={getSimilarityBadgeVariant(
-                        result.similarityScore
-                      )}
-                    >
-                      {(result.similarityScore * 100).toFixed(0)}%
-                    </Badge>
-                  </div>
-                </div>
-
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm line-clamp-2">
-                    {result.title}
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    {result.sourceWebsite} • {result.faceCount} face
-                    {result.faceCount !== 1 ? "s" : ""}
-                  </CardDescription>
-                </CardHeader>
-
-                <CardFooter className="pt-0">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    onClick={() =>
-                      handleVideoLinkClick(result.videoUrl, result.title)
-                    }
-                  >
-                    <ExternalLink className="h-3 w-3 mr-1" />
-                    Watch Video
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
-
-          {/* Load more button */}
-          {hasMoreResults && (
-            <div className="flex justify-center mt-6">
-              <Button variant="outline" onClick={handleLoadMore}>
-                Load More Results
-              </Button>
-            </div>
-          )}
-
-          {/* Results summary */}
-          <div className="mt-6 text-center text-sm text-muted-foreground">
-            Showing {sortedResults.length} of {filteredResults.length} results
-            {filteredResults.length !== sanitizedResults.length && (
-              <span> (filtered from {sanitizedResults.length} total)</span>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Results summary */}
+      <div className="mt-6 text-center text-sm text-muted-foreground">
+        Showing {sortedResults.length} of {filteredResults.length} results
+        {filteredResults.length !== sanitizedResults.length && (
+          <span> (filtered from {sanitizedResults.length} total)</span>
+        )}
+      </div>
     </div>
   )
 }
