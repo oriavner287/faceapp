@@ -1,0 +1,53 @@
+services:
+  # Backend Service
+  - type: web
+    name: face-app-backend
+    env: node
+    region: oregon
+    plan: starter
+    buildCommand: |
+      # Install Chromium for Puppeteer
+      apt-get update
+      apt-get install -y chromium-browser
+      # Install Node dependencies
+      cd backend
+      npm install
+      # Build the app
+      npm run build
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: CHROME_BIN
+        value: /usr/bin/chromium-browser
+      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+        value: "true"
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: /usr/bin/chromium-browser
+      # Add your other environment variables here
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: JWT_SECRET
+        generateValue: true
+    healthCheckPath: /health
+
+  # Frontend Service (if deploying separately)
+  # - type: web
+  #   name: face-app-frontend
+  #   env: node
+  #   region: oregon
+  #   plan: starter
+  #   buildCommand: cd frontend && npm install && npm run build
+  #   startCommand: cd frontend && npm start
+  #   envVars:
+  #     - key: NODE_ENV
+  #       value: production
+  #     - key: NEXT_PUBLIC_BACKEND_URL
+  #       fromService:
+  #         type: web
+  #         name: face-app-backend
+  #         property: host

@@ -144,37 +144,90 @@ export class VideoFetchingService {
 
   private async initBrowser(): Promise<Browser> {
     if (!this.browser) {
-      // Security: Configure Puppeteer with security settings
-      this.browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          "--no-sandbox",
-          "--disable-setuid-sandbox",
-          "--disable-dev-shm-usage",
-          "--disable-accelerated-2d-canvas",
-          "--no-first-run",
-          "--no-zygote",
-          "--disable-gpu",
-          // Security: Additional security flags
-          "--disable-javascript", // Disable JavaScript execution for security
-          "--disable-plugins",
-          "--disable-extensions",
-          "--disable-images", // We only need HTML structure
-          "--disable-background-networking",
-          "--disable-sync",
-          "--disable-translate",
-          "--disable-ipc-flooding-protection", // Can cause issues in containers
-          "--disable-renderer-backgrounding",
-          "--disable-backgrounding-occluded-windows",
-          "--disable-features=TranslateUI",
-          "--disable-component-extensions-with-background-pages",
-          "--no-default-browser-check",
-          "--no-pings",
-          "--mute-audio",
-        ],
-        // Security: Restrict network access
-        ignoreDefaultArgs: ["--enable-automation"],
-      })
+      // Detect if running in cloud environment (Render, Railway, etc.)
+      const isCloudEnvironment =
+        process.env["RENDER"] === "true" ||
+        process.env["RAILWAY_ENVIRONMENT"] ||
+        process.env["FLY_APP_NAME"] ||
+        !process.env["HOME"]?.includes("/home/")
+
+      console.log(
+        "[VideoFetching] Initializing browser, cloud environment:",
+        isCloudEnvironment
+      )
+
+      try {
+        // Security: Configure Puppeteer with security settings
+        const launchOptions: any = {
+          headless: true,
+          args: [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-accelerated-2d-canvas",
+            "--no-first-run",
+            "--no-zygote",
+            "--disable-gpu",
+            // Security: Additional security flags
+            "--disable-javascript", // Disable JavaScript execution for security
+            "--disable-plugins",
+            "--disable-extensions",
+            "--disable-images", // We only need HTML structure
+            "--disable-background-networking",
+            "--disable-sync",
+            "--disable-translate",
+            "--disable-ipc-flooding-protection", // Can cause issues in containers
+            "--disable-renderer-backgrounding",
+            "--disable-backgrounding-occluded-windows",
+            "--disable-features=TranslateUI",
+            "--disable-component-extensions-with-background-pages",
+            "--no-default-browser-check",
+            "--no-pings",
+            "--mute-audio",
+          ],
+          // Security: Restrict network access
+          ignoreDefaultArgs: ["--enable-automation"],
+        }
+
+        // In cloud environments, try to use system Chrome if available
+        if (isCloudEnvironment) {
+          // Common Chrome paths in cloud environments
+          const chromePaths = [
+            "/usr/bin/chromium-browser",
+            "/usr/bin/chromium",
+            "/usr/bin/google-chrome-stable",
+            "/usr/bin/google-chrome",
+            process.env["CHROME_BIN"],
+          ].filter(Boolean)
+
+          // Try to find Chrome
+          for (const chromePath of chromePaths) {
+            try {
+              await fs.access(chromePath as string)
+              console.log("[VideoFetching] Found Chrome at:", chromePath)
+              launchOptions.executablePath = chromePath
+              break
+            } catch {
+              // Chrome not found at this path, try next
+            }
+          }
+
+          if (!launchOptions.executablePath) {
+            console.warn(
+              "[VideoFetching] Chrome not found in cloud environment, Puppeteer will fail"
+            )
+            console.warn(
+              "[VideoFetching] Install Chrome with: apt-get install -y chromium-browser"
+            )
+          }
+        }
+
+        this.browser = await puppeteer.launch(launchOptions)
+        console.log("[VideoFetching] Browser initialized successfully")
+      } catch (error) {
+        console.error("[VideoFetching] Failed to initialize browser:", error)
+        throw error
+      }
     }
     return this.browser
   }
