@@ -412,6 +412,11 @@ export default function Home() {
         const formData = new FormData()
         formData.append("fileId", uploadData.fileId)
 
+        // In serverless environments, pass the image data directly
+        if (uploadData.imageData) {
+          formData.append("imageData", uploadData.imageData)
+        }
+
         const faceResult = await detectFaces(formData)
 
         if (!faceResult.success || !faceResult.data?.faceDetected) {

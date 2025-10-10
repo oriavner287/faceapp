@@ -87,6 +87,7 @@ export interface UploadResult {
       width: number
       height: number
     }
+    imageData?: string // Base64 encoded image data for serverless environments
   }
   error?: {
     code: string
@@ -1693,17 +1694,48 @@ export async function detectFaces(
       }
     }
 
-    // Check if file exists
-    const fileInfo = await getUploadInfo(fileId)
-    if (!fileInfo.exists || !fileInfo.filePath) {
-      logSecurityEvent("FILE_NOT_FOUND_FOR_DETECTION", { fileId }, clientIP)
-      return {
-        success: false,
-        error: {
-          code: "FILE_NOT_FOUND",
-          message: "Uploaded file not found or has expired.",
-        },
+    // Check if we're in serverless environment
+    const isServerless =
+      process.env.VERCEL === "1" || process.env.AWS_LAMBDA_FUNCTION_NAME
+
+    let imageBuffer: Buffer
+
+    if (isServerless) {
+      // In serverless, the image data should be passed directly in formData
+      const imageDataBase64 = formData.get("imageData") as string
+
+      if (!imageDataBase64) {
+        logSecurityEvent("NO_IMAGE_DATA_IN_SERVERLESS", { fileId }, clientIP)
+        return {
+          success: false,
+          error: {
+            code: "NO_IMAGE_DATA",
+            message: "Image data not provided.",
+          },
+        }
       }
+
+      console.log(
+        "[detectFaces] Using image data from formData (serverless mode)"
+      )
+      imageBuffer = Buffer.from(imageDataBase64, "base64")
+    } else {
+      // In traditional environments, read from filesystem
+      const fileInfo = await getUploadInfo(fileId)
+      if (!fileInfo.exists || !fileInfo.filePath) {
+        logSecurityEvent("FILE_NOT_FOUND_FOR_DETECTION", { fileId }, clientIP)
+        return {
+          success: false,
+          error: {
+            code: "FILE_NOT_FOUND",
+            message: "Uploaded file not found or has expired.",
+          },
+        }
+      }
+
+      console.log("[detectFaces] Reading file from disk:", fileInfo.filePath)
+      const { readFile } = await import("fs/promises")
+      imageBuffer = await readFile(fileInfo.filePath)
     }
 
     // Call backend oRPC face detection service
@@ -1713,12 +1745,6 @@ export async function detectFaces(
       const apiUrl = `${backendUrl}/api/face/processImage`
 
       console.log("[detectFaces] Calling backend face detection at:", apiUrl)
-      console.log("[detectFaces] File path:", fileInfo.filePath)
-
-      // Read the image file
-      const { readFile } = await import("fs/promises")
-      const imageBuffer = await readFile(fileInfo.filePath)
-
       console.log("[detectFaces] Image buffer size:", imageBuffer.length)
 
       // Call backend with image buffer
