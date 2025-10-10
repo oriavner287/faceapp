@@ -2,11 +2,14 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmitOnError": false,
-    "strict": false,
     "skipLibCheck": true,
     "declaration": false,
     "declarationMap": false,
     "sourceMap": false,
-    "moduleResolution": "bundler"
+    "moduleResolution": "bundler",
+    // Disable strict checks for build to allow compilation with warnings
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": false
   }
 }
