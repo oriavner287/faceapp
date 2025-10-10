@@ -1706,34 +1706,128 @@ export async function detectFaces(
       }
     }
 
-    // TODO: Integrate with backend oRPC face detection service
-    // For now, simulate face detection
-    const mockEmbedding = Array.from({ length: 128 }, () => Math.random())
+    // Call backend oRPC face detection service
+    try {
+      const backendUrl =
+        process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001"
+      const apiUrl = `${backendUrl}/api/face/processImage`
 
-    logSecurityEvent(
-      "FACE_DETECTION_SUCCESS",
-      {
-        fileId,
-        faceDetected: true,
-        embeddingLength: mockEmbedding.length,
-      },
-      clientIP,
-      "low"
-    )
+      console.log("[detectFaces] Calling backend face detection at:", apiUrl)
+      console.log("[detectFaces] File path:", fileInfo.filePath)
 
-    return {
-      success: true,
-      data: {
-        faceDetected: true,
-        embedding: mockEmbedding,
-        boundingBox: {
-          x: 100,
-          y: 100,
-          width: 200,
-          height: 200,
+      // Read the image file
+      const { readFile } = await import("fs/promises")
+      const imageBuffer = await readFile(fileInfo.filePath)
+
+      console.log("[detectFaces] Image buffer size:", imageBuffer.length)
+
+      // Call backend with image buffer
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-        confidence: 0.95,
-      },
+        body: JSON.stringify({
+          imageData: Array.from(imageBuffer), // Convert Buffer to array for JSON
+        }),
+      })
+
+      if (!response.ok) {
+        let errorDetails = ""
+        try {
+          const errorBody = await response.text()
+          console.error("[detectFaces] Backend error response:", errorBody)
+          errorDetails = ` - ${errorBody.substring(0, 200)}`
+        } catch (e) {
+          // Ignore if we can't read the error body
+        }
+
+        throw new Error(
+          `Backend returned ${response.status}: ${response.statusText}${errorDetails}`
+        )
+      }
+
+      const backendResult = await response.json()
+
+      console.log("[detectFaces] Backend result:", {
+        success: backendResult.success,
+        faceDetected: backendResult.faceDetected,
+        embeddingLength: backendResult.embedding?.length,
+      })
+
+      if (!backendResult.success || !backendResult.faceDetected) {
+        logSecurityEvent(
+          "FACE_DETECTION_NO_FACE",
+          {
+            fileId,
+            backendMessage: backendResult.error?.message,
+          },
+          clientIP
+        )
+
+        return {
+          success: false,
+          error: {
+            code: "NO_FACE_DETECTED",
+            message:
+              backendResult.error?.message ||
+              "No face detected in the uploaded image.",
+          },
+        }
+      }
+
+      logSecurityEvent(
+        "FACE_DETECTION_SUCCESS",
+        {
+          fileId,
+          faceDetected: true,
+          embeddingLength: backendResult.embedding?.length || 0,
+        },
+        clientIP,
+        "low"
+      )
+
+      return {
+        success: true,
+        data: {
+          faceDetected: true,
+          embedding: backendResult.embedding || [],
+          boundingBox: {
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+          },
+          confidence: 0.95,
+        },
+      }
+    } catch (backendError) {
+      console.error(
+        "[detectFaces] Backend face detection failed:",
+        backendError
+      )
+
+      logSecurityEvent(
+        "BACKEND_FACE_DETECTION_FAILED",
+        {
+          fileId,
+          error:
+            backendError instanceof Error
+              ? backendError.message
+              : "Unknown error",
+        },
+        clientIP,
+        "high"
+      )
+
+      return {
+        success: false,
+        error: {
+          code: "BACKEND_ERROR",
+          message:
+            "Failed to detect faces in the image. Please try again later.",
+        },
+      }
     }
   } catch (error) {
     logSecurityEvent(

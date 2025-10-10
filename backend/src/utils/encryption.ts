@@ -27,8 +27,20 @@ function getEncryptionKey(): Buffer {
     process.env["ENCRYPTION_KEY"] || config.security["encryptionKey"]
 
   if (keyString && keyString !== "<<ENCRYPTION_KEY>>") {
-    // Use provided key (should be base64 encoded)
-    return Buffer.from(keyString, "base64")
+    // Try to use provided key (should be base64 encoded)
+    try {
+      const keyBuffer = Buffer.from(keyString, "base64")
+      if (keyBuffer.length === KEY_LENGTH) {
+        return keyBuffer
+      }
+    } catch (error) {
+      // Fall through to generate key from string
+    }
+
+    // If not base64 or wrong length, derive key from string using SHA-256
+    const hash = crypto.createHash("sha256")
+    hash.update(keyString)
+    return hash.digest()
   }
 
   // Generate random key for development (not recommended for production)

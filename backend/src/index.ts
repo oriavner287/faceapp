@@ -12,7 +12,6 @@ import {
 } from "./middleware/security.js"
 import { videoFetchingService } from "./services/videoFetchingService.js"
 import { thumbnailProcessingService } from "./services/thumbnailProcessingService.js"
-import { sessionService } from "./services/sessionService.js"
 import { FetchVideosInputSchema } from "./contracts/api.js"
 
 const app = new Hono()
@@ -114,6 +113,108 @@ app.get("/test", c => {
   console.log("Test endpoint hit!")
   c.header("Access-Control-Allow-Origin", "*")
   return c.text("Backend is working!")
+})
+
+// Direct REST endpoint for face detection
+app.post(`${API_ENDPOINTS.API_BASE}/face/processImage`, async c => {
+  try {
+    console.log(`[API] Face detection endpoint hit`)
+    const body = await c.req.json()
+    console.log(`[API] Request body size:`, JSON.stringify(body).length)
+
+    // Validate input - imageData should be an array of numbers
+    if (!body.imageData || !Array.isArray(body.imageData)) {
+      console.error(`[API] Invalid imageData format`)
+      return c.json(
+        {
+          success: false,
+          faceDetected: false,
+          searchId: "",
+          error: {
+            code: "INVALID_INPUT",
+            message: "Invalid image data format",
+          },
+        },
+        400
+      )
+    }
+
+    // Convert array back to Buffer
+    const imageBuffer = Buffer.from(body.imageData)
+    console.log(`[API] Image buffer size:`, imageBuffer.length)
+
+    // Import face detection service
+    const { faceDetectionService } = await import(
+      "./services/faceDetectionService.js"
+    )
+    const { sessionService } = await import("./services/sessionService.js")
+    const { SIMILARITY_CONSTRAINTS } = await import("./types/index.js")
+
+    // Initialize face detection service
+    await faceDetectionService.initialize()
+
+    // Generate embedding
+    const embeddingResult = await faceDetectionService.generateEmbedding(
+      imageBuffer
+    )
+
+    if (!embeddingResult.success || !embeddingResult.embedding) {
+      console.error(`[API] Face detection failed:`, embeddingResult.error)
+      return c.json({
+        success: false,
+        faceDetected: false,
+        searchId: "",
+        error: embeddingResult.error || {
+          code: "NO_FACE_DETECTED",
+          message: "No face detected in the image",
+        },
+      })
+    }
+
+    // Create session
+    const sessionResult = await sessionService.createSession(
+      embeddingResult.embedding,
+      SIMILARITY_CONSTRAINTS.DEFAULT_THRESHOLD
+    )
+
+    if (!sessionResult.success || !sessionResult.data) {
+      console.error(`[API] Session creation failed:`, sessionResult.error)
+      return c.json({
+        success: false,
+        faceDetected: false,
+        searchId: "",
+        error: {
+          code: "SESSION_ERROR",
+          message: "Failed to create session",
+        },
+      })
+    }
+
+    console.log(
+      `[API] Face detected successfully. Session: ${sessionResult.data.id}`
+    )
+
+    return c.json({
+      success: true,
+      faceDetected: true,
+      searchId: sessionResult.data.id,
+      embedding: embeddingResult.embedding,
+    })
+  } catch (error) {
+    console.error(`[API] Face detection error:`, error)
+    return c.json(
+      {
+        success: false,
+        faceDetected: false,
+        searchId: "",
+        error: {
+          code: "INTERNAL_ERROR",
+          message: error instanceof Error ? error.message : "Unknown error",
+        },
+      },
+      500
+    )
+  }
 })
 
 // Direct REST endpoint for video search - bypass oRPC complexity

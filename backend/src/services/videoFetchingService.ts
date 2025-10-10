@@ -42,10 +42,10 @@ const WEBSITE_CONFIGS = [
     useApi: false, // No public API available, use scraping
     apiEndpoint: undefined,
     selectors: {
-      videoContainer: ".mozaique .thumb-block, #video-list .thumb-block",
-      title: ".title, p.title",
-      thumbnail: "img.thumb, img[data-src]",
-      videoUrl: "a.thumb-inside, a[href*='/video']",
+      videoContainer: ".thumb-block",
+      title: "p.title a",
+      thumbnail: ".thumb img",
+      videoUrl: ".thumb a",
     },
   },
   {
@@ -55,10 +55,10 @@ const WEBSITE_CONFIGS = [
     useApi: false, // No public API available, use scraping
     apiEndpoint: undefined,
     selectors: {
-      videoContainer: ".thumb-block, div[class*='thumb']",
-      title: "p.title, .title, p[class*='title']",
-      thumbnail: "img[data-src], img.thumb, img[class*='thumb']",
-      videoUrl: "a[href*='/video']",
+      videoContainer: ".thumb-block",
+      title: "p.title a",
+      thumbnail: ".thumb img",
+      videoUrl: ".thumb a",
     },
   },
 ]
@@ -505,6 +505,7 @@ export class VideoFetchingService {
       await page.setViewport({ width: 1920, height: 1080 })
 
       // Navigate to the website with timeout
+      console.log(`[DEBUG] Navigating to ${config.url}`)
       await page.goto(config.url, {
         waitUntil: "networkidle2",
         timeout: options.timeout || VIDEO_CONSTRAINTS.THUMBNAIL_TIMEOUT_MS,
@@ -513,69 +514,158 @@ export class VideoFetchingService {
       // Wait for content to load
       await new Promise(resolve => setTimeout(resolve, 2000))
 
-      // Extract video data
+      // Create scrape-results directory in project root
+      const projectRoot = path.join(process.cwd(), "..")
+      const scrapeResultsDir = path.join(projectRoot, "scrape-results")
+      await fs.mkdir(scrapeResultsDir, { recursive: true })
+
+      // DEBUG: Save page HTML for inspection
+      const html = await page.content()
+      const debugHtmlPath = path.join(
+        scrapeResultsDir,
+        `${config.name}-page.html`
+      )
+      await fs.writeFile(debugHtmlPath, html)
+      console.log(`[DEBUG] Saved page HTML to ${debugHtmlPath}`)
+
+      // DEBUG: Take screenshot
+      const screenshotPath = path.join(
+        scrapeResultsDir,
+        `${config.name}-screenshot.png`
+      )
+      await page.screenshot({ path: screenshotPath, fullPage: false })
+      console.log(`[DEBUG] Saved screenshot to ${screenshotPath}`)
+
+      // Extract video data with detailed debugging
       const videoData = await page.evaluate(
         (selectors: typeof config.selectors) => {
-          const containers = document.querySelectorAll(selectors.videoContainer)
-          console.log(`Found ${containers.length} video containers`)
+          const debugInfo: any = {
+            selectors,
+            containerSelector: selectors.videoContainer,
+            containersFound: 0,
+            sampleHTML: "",
+            results: [],
+            errors: [],
+          }
 
-          const results: Array<{
-            title: string
-            thumbnailUrl: string
-            videoUrl: string
-          }> = []
+          try {
+            const containers = document.querySelectorAll(
+              selectors.videoContainer
+            )
+            debugInfo.containersFound = containers.length
+            console.log(`Found ${containers.length} video containers`)
 
-          containers.forEach((container: Element, index: number) => {
-            if (results.length >= 10) return // Limit per site
+            // Get sample HTML from first container if available
+            if (containers.length > 0 && containers[0]) {
+              debugInfo.sampleHTML = containers[0].outerHTML.substring(0, 500)
+            }
 
-            try {
-              const titleElement = container.querySelector(selectors.title)
-              const thumbnailElement = container.querySelector(
-                selectors.thumbnail
-              ) as HTMLImageElement | null
-              const linkElement = container.querySelector(
-                selectors.videoUrl
-              ) as HTMLAnchorElement | null
+            const results: Array<{
+              title: string
+              thumbnailUrl: string
+              videoUrl: string
+              debugInfo?: any
+            }> = []
 
-              const title =
-                titleElement?.textContent?.trim() || `Video ${index + 1}`
-              const thumbnailUrl =
-                thumbnailElement?.src ||
-                thumbnailElement?.dataset?.["src"] ||
-                ""
-              const videoUrl = linkElement?.href || ""
+            containers.forEach((container: Element, index: number) => {
+              if (results.length >= 10) return // Limit per site
 
-              console.log(
-                `Video ${index}: title="${title}", thumb="${
-                  thumbnailUrl ? "found" : "missing"
-                }", url="${videoUrl ? "found" : "missing"}"`
-              )
+              try {
+                const titleElement = container.querySelector(selectors.title)
+                const thumbnailElement = container.querySelector(
+                  selectors.thumbnail
+                ) as HTMLImageElement | null
+                const linkElement = container.querySelector(
+                  selectors.videoUrl
+                ) as HTMLAnchorElement | null
 
-              if (thumbnailUrl && videoUrl) {
-                results.push({
+                const title =
+                  titleElement?.textContent?.trim() || `Video ${index + 1}`
+                const thumbnailUrl =
+                  thumbnailElement?.getAttribute("src") ||
+                  thumbnailElement?.getAttribute("data-src") ||
+                  thumbnailElement?.src ||
+                  ""
+                const videoUrl =
+                  linkElement?.getAttribute("href") || linkElement?.href || ""
+
+                const itemDebug = {
+                  index,
                   title,
                   thumbnailUrl,
                   videoUrl,
+                  titleFound: !!titleElement,
+                  thumbnailFound: !!thumbnailElement,
+                  linkFound: !!linkElement,
+                  containerHTML: container.outerHTML.substring(0, 300),
+                }
+
+                console.log(
+                  `Video ${index}: title="${title}", thumb="${
+                    thumbnailUrl ? "found" : "missing"
+                  }", url="${videoUrl ? "found" : "missing"}"`
+                )
+
+                if (thumbnailUrl && videoUrl) {
+                  results.push({
+                    title,
+                    thumbnailUrl,
+                    videoUrl,
+                    debugInfo: itemDebug,
+                  })
+                } else {
+                  debugInfo.errors.push({
+                    index,
+                    reason: "Missing thumbnail or video URL",
+                    details: itemDebug,
+                  })
+                }
+              } catch (error) {
+                console.warn("Error extracting video data:", error)
+                debugInfo.errors.push({
+                  index,
+                  error: error instanceof Error ? error.message : String(error),
                 })
               }
-            } catch (error) {
-              console.warn("Error extracting video data:", error)
-            }
-          })
+            })
 
-          console.log(`Extracted ${results.length} videos`)
-          return results
+            console.log(`Extracted ${results.length} videos`)
+            debugInfo.results = results
+            return debugInfo
+          } catch (error) {
+            debugInfo.errors.push({
+              fatal: true,
+              error: error instanceof Error ? error.message : String(error),
+            })
+            return debugInfo
+          }
         },
         config.selectors
       )
 
+      // Save debug information to JSON file in scrape-results directory
+      const debugJsonPath = path.join(
+        scrapeResultsDir,
+        `${config.name}-scrape-results.json`
+      )
+      await fs.writeFile(debugJsonPath, JSON.stringify(videoData, null, 2))
+      console.log(`[DEBUG] Saved scraping debug info to ${debugJsonPath}`)
       console.log(
-        `Puppeteer extracted ${videoData.length} videos from ${config.name}`
+        `[DEBUG] Found ${videoData.containersFound} containers, extracted ${
+          videoData.results?.length || 0
+        } videos`
+      )
+
+      console.log(
+        `Puppeteer extracted ${videoData.results?.length || 0} videos from ${
+          config.name
+        }`
       )
 
       // Process extracted data
-      for (let i = 0; i < videoData.length; i++) {
-        const data = videoData[i]
+      const results = videoData.results || []
+      for (let i = 0; i < results.length; i++) {
+        const data = results[i]
         if (!data) continue
 
         try {
@@ -595,6 +685,7 @@ export class VideoFetchingService {
       const errorMsg = `Puppeteer scraping failed for ${config.name}: ${
         error instanceof Error ? error.message : "Unknown error"
       }`
+      console.error(errorMsg)
       errors.push(errorMsg)
       throw new Error(errorMsg)
     } finally {

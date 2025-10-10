@@ -32,6 +32,9 @@ frontend/uploads/
 *.tmp
 *.temp
 
+# Debug files from scraping
+scrape-results/
+
 # Security: Log files that might contain sensitive data
 logs/
 *.log

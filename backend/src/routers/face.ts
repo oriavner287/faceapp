@@ -78,7 +78,11 @@ export const faceRouter = os.router({
       const userAgent = "unknown" // Would need to be passed from middleware
 
       try {
-        console.log("Processing image of size:", input.imageData.length)
+        console.log("[faceRouter] ========== FACE DETECTION START ==========")
+        console.log(
+          "[faceRouter] Processing image of size:",
+          input.imageData.length
+        )
 
         // Security: Log biometric data processing attempt
         auditLogger.logAccess({
@@ -92,7 +96,7 @@ export const faceRouter = os.router({
 
         // Enhanced input validation
         if (!input.imageData || input.imageData.length === 0) {
-          console.error("Empty image buffer received")
+          console.error("[faceRouter] Empty image buffer received")
           return {
             success: false,
             faceDetected: false,
@@ -171,6 +175,7 @@ export const faceRouter = os.router({
         )
 
         // Generate embedding from the uploaded image with timeout
+        console.log("[faceRouter] Generating face embedding...")
         let embeddingResult
         try {
           const embeddingPromise = faceDetectionService.generateEmbedding(
@@ -185,7 +190,7 @@ export const faceRouter = os.router({
             timeoutPromise,
           ])
         } catch (timeoutError) {
-          console.error("Face detection timeout:", timeoutError)
+          console.error("[faceRouter] Face detection timeout:", timeoutError)
           // Security: Log failed biometric processing
           console.log(
             JSON.stringify({
@@ -203,13 +208,26 @@ export const faceRouter = os.router({
         }
 
         if (!embeddingResult.success) {
-          console.error("Face detection failed:", embeddingResult.error)
+          console.error(
+            "[faceRouter] Face detection failed:",
+            embeddingResult.error
+          )
           return {
             success: false,
             faceDetected: false,
             searchId: "",
           }
         }
+
+        console.log("[faceRouter] Face embedding generated successfully")
+        console.log(
+          "[faceRouter] Embedding length:",
+          embeddingResult.embedding?.length
+        )
+        console.log(
+          "[faceRouter] Embedding first 5 values:",
+          embeddingResult.embedding?.slice(0, 5)
+        )
 
         // Enhanced embedding validation
         if (
@@ -301,7 +319,10 @@ export const faceRouter = os.router({
 
         const processingTime = Date.now() - startTime
         console.log(
-          `Face detected successfully. Session ID: ${session.id}, Processing time: ${processingTime}ms`
+          `[faceRouter] Face detected successfully. Session ID: ${session.id}, Processing time: ${processingTime}ms`
+        )
+        console.log(
+          "[faceRouter] ========== FACE DETECTION COMPLETE =========="
         )
 
         return {

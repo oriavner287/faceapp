@@ -19,11 +19,13 @@ export const videoRouter = os.router({
       const sessionId = "video-search-" + Date.now() // Generate session ID for tracking
 
       try {
+        console.log("[videoRouter] ========== VIDEO SEARCH START ==========")
+        console.log("[videoRouter] Embedding length:", input.embedding.length)
         console.log(
-          "Fetching videos with embedding length:",
-          input.embedding.length
+          "[videoRouter] Embedding first 5 values:",
+          input.embedding.slice(0, 5)
         )
-        console.log("Using threshold:", input.threshold || 0.7)
+        console.log("[videoRouter] Using threshold:", input.threshold || 0.7)
 
         // Security: Log video search operation
         auditLogger.logAccess({
@@ -36,6 +38,7 @@ export const videoRouter = os.router({
         })
 
         // Step 1: Fetch videos from all configured websites with security context
+        console.log("[videoRouter] Step 1: Fetching videos from websites...")
         const fetchResult = await videoFetchingService.fetchVideosFromAllSites(
           {
             useHeadless: true,
@@ -46,7 +49,17 @@ export const videoRouter = os.router({
         )
 
         console.log(
-          `Fetched ${fetchResult.results.length} videos from ${fetchResult.processedSites.length} sites`
+          `[videoRouter] Fetched ${fetchResult.results.length} videos from ${fetchResult.processedSites.length} sites`
+        )
+        console.log(
+          "[videoRouter] Sample video:",
+          fetchResult.results[0]
+            ? {
+                id: fetchResult.results[0].id,
+                title: fetchResult.results[0].title.substring(0, 50),
+                thumbnailUrl: fetchResult.results[0].thumbnailUrl,
+              }
+            : "No videos"
         )
 
         if (fetchResult.results.length === 0) {
@@ -58,15 +71,29 @@ export const videoRouter = os.router({
         }
 
         // Step 2: Download thumbnails for face detection
+        console.log("[videoRouter] Step 2: Downloading thumbnails...")
         const downloadResult = await videoFetchingService.downloadThumbnails(
           fetchResult.results
         )
 
         console.log(
-          `Downloaded ${downloadResult.processedVideos.length} thumbnails`
+          `[videoRouter] Downloaded ${downloadResult.processedVideos.length} thumbnails`
+        )
+        console.log(
+          "[videoRouter] Sample downloaded video:",
+          downloadResult.processedVideos[0]
+            ? {
+                id: downloadResult.processedVideos[0].id,
+                localThumbnailPath:
+                  downloadResult.processedVideos[0].localThumbnailPath,
+              }
+            : "No thumbnails"
         )
 
         // Step 3: Process thumbnails for face detection and similarity matching using the dedicated service
+        console.log(
+          "[videoRouter] Step 3: Processing thumbnails for face detection..."
+        )
         const processingResult =
           await thumbnailProcessingService.processThumbnailsForFaceDetection(
             downloadResult.processedVideos,
@@ -88,15 +115,34 @@ export const videoRouter = os.router({
         ]
 
         // Log processing statistics
-        console.log("Thumbnail processing statistics:", processingResult.stats)
+        console.log(
+          "[videoRouter] Thumbnail processing statistics:",
+          processingResult.stats
+        )
+        console.log("[videoRouter] Video matches found:", videoMatches.length)
+        console.log(
+          "[videoRouter] Sample match:",
+          videoMatches[0]
+            ? {
+                id: videoMatches[0].id,
+                title: videoMatches[0].title.substring(0, 50),
+                similarityScore: videoMatches[0].similarityScore,
+                facesDetected: videoMatches[0].detectedFaces.length,
+              }
+            : "No matches"
+        )
 
         // Step 4: Clean up temporary files
+        console.log("[videoRouter] Step 4: Cleaning up temporary files...")
         await videoFetchingService.cleanupThumbnails(
           downloadResult.processedVideos
         )
 
         // Results are already sorted by the thumbnail processing service
-        console.log(`Found ${videoMatches.length} matching videos`)
+        console.log(
+          `[videoRouter] Found ${videoMatches.length} matching videos`
+        )
+        console.log("[videoRouter] ========== VIDEO SEARCH COMPLETE ==========")
 
         // Security: Log successful video search completion
         auditLogger.logAccess({

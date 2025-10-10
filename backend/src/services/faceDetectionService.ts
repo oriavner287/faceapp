@@ -1,4 +1,6 @@
+// @ts-ignore - face-api.js doesn't have TypeScript definitions
 import * as faceapi from "face-api.js"
+import canvas from "canvas"
 import { join } from "path"
 import sharp from "sharp"
 import type { FaceDetection, ErrorCode } from "../types/index.js"
@@ -6,29 +8,10 @@ import { encryptFaceEmbedding } from "../utils/encryption.js"
 import { auditLogger } from "../utils/auditLogger.js"
 import { faceDetectionRateLimit } from "../middleware/rateLimiter.js"
 
-// Dynamic import for canvas to handle optional dependency
-let Canvas: any, Image: any, ImageData: any
-
-async function initializeCanvas() {
-  try {
-    // @ts-ignore - Dynamic import for optional canvas dependency
-    const canvas = await import("canvas")
-    Canvas = canvas.Canvas
-    Image = canvas.Image
-    ImageData = canvas.ImageData
-
-    // Polyfill for face-api.js in Node.js environment
-    // @ts-ignore
-    global.HTMLCanvasElement = Canvas
-    // @ts-ignore
-    global.HTMLImageElement = Image
-    // @ts-ignore
-    global.ImageData = ImageData
-  } catch (error) {
-    console.error("Canvas module not available:", error)
-    throw new Error("Canvas dependency is required for face detection")
-  }
-}
+// Setup canvas for face-api.js in Node.js
+const { Canvas, Image, ImageData } = canvas
+// @ts-ignore
+faceapi.env.monkeyPatch({ Canvas, Image, ImageData })
 
 export interface FaceDetectionResult {
   success: boolean
@@ -74,10 +57,7 @@ export class FaceDetectionService {
     }
 
     try {
-      // Initialize canvas polyfills first
-      await initializeCanvas()
-
-      console.log("Loading face-api.js models from:", this.modelsPath)
+      console.log("Loading @vladmandic/face-api models from:", this.modelsPath)
 
       // Security: Validate model integrity before loading
       const modelIntegrityValid = await this.validateModelIntegrity()
@@ -169,12 +149,12 @@ export class FaceDetectionService {
       // Preprocess image with Sharp
       const processedImage = await this.preprocessImage(imageBuffer)
 
-      // Convert to face-api.js compatible format
-      const img = await this.bufferToImage(processedImage)
+      // Convert buffer to Canvas (most reliable for face-api.js in Node.js)
+      const canvas = await this.bufferToCanvas(processedImage)
 
       // Detect faces with landmarks and descriptors
       const detections = await faceapi
-        .detectAllFaces(img)
+        .detectAllFaces(canvas)
         .withFaceLandmarks()
         .withFaceDescriptors()
 
@@ -190,8 +170,8 @@ export class FaceDetectionService {
       }
 
       // Convert detections to our FaceDetection format with encryption
-      const faces: FaceDetection[] = detections.map(detection => {
-        const rawEmbedding = Array.from(detection.descriptor)
+      const faces: FaceDetection[] = detections.map((detection: any) => {
+        const rawEmbedding = Array.from(detection.descriptor) as number[]
 
         // Security: Encrypt face embeddings immediately after generation
         const encryptionResult = encryptFaceEmbedding(rawEmbedding)
@@ -341,54 +321,18 @@ export class FaceDetectionService {
   }
 
   /**
-   * Convert buffer to face-api.js compatible image
+   * Convert buffer to Canvas for face-api.js
+   * Using canvas library which is compatible with face-api.js
    */
-  private async bufferToImage(buffer: Buffer): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const img = new Image()
+  private async bufferToCanvas(buffer: Buffer): Promise<canvas.Canvas> {
+    const img = new Image()
+    img.src = buffer
 
-      img.onload = () => resolve(img as any)
-      img.onerror = (error: any) =>
-        reject(new Error(`Failed to load image: ${error}`))
+    const canvasEl = canvas.createCanvas(img.width, img.height)
+    const ctx = canvasEl.getContext("2d")
+    ctx.drawImage(img, 0, 0)
 
-      // Convert buffer to data URL
-      const base64 = buffer.toString("base64")
-      const mimeType = this.detectMimeType(buffer)
-      img.src = `data:${mimeType};base64,${base64}`
-    })
-  }
-
-  /**
-   * Detect MIME type from buffer
-   */
-  private detectMimeType(buffer: Buffer): string {
-    // Check for common image signatures
-    if (buffer.length >= 4) {
-      // JPEG
-      if (buffer[0] === 0xff && buffer[1] === 0xd8) {
-        return "image/jpeg"
-      }
-      // PNG
-      if (
-        buffer[0] === 0x89 &&
-        buffer[1] === 0x50 &&
-        buffer[2] === 0x4e &&
-        buffer[3] === 0x47
-      ) {
-        return "image/png"
-      }
-      // WebP
-      if (
-        buffer.length >= 12 &&
-        buffer.toString("ascii", 0, 4) === "RIFF" &&
-        buffer.toString("ascii", 8, 12) === "WEBP"
-      ) {
-        return "image/webp"
-      }
-    }
-
-    // Default to JPEG
-    return "image/jpeg"
+    return canvasEl
   }
 
   /**
@@ -482,11 +426,22 @@ export class FaceDetectionService {
           const content = await fs.promises.readFile(modelPath, "utf8")
           try {
             const parsed = JSON.parse(content)
-            if (
-              !parsed.weightsManifest ||
-              !Array.isArray(parsed.weightsManifest)
-            ) {
+            // face-api.js models can have two formats:
+            // 1. Array format: [{ paths: [...], weights: [...] }]
+            // 2. Object format: { weightsManifest: [...] }
+            const isArrayFormat =
+              Array.isArray(parsed) &&
+              parsed.length > 0 &&
+              parsed[0].paths &&
+              parsed[0].weights
+            const isObjectFormat =
+              parsed.weightsManifest && Array.isArray(parsed.weightsManifest)
+
+            if (!isArrayFormat && !isObjectFormat) {
               console.error(`Invalid model manifest structure: ${modelPath}`)
+              console.error(
+                `Expected array with paths/weights or object with weightsManifest`
+              )
               return false
             }
           } catch (parseError) {
